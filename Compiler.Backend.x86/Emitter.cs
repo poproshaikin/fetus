@@ -1,11 +1,12 @@
 ﻿using System.Text;
 using Compiler.IR;
+using Compiler.Semantic;
 
 namespace Compiler.Backend;
 
 public class Emitter
 {
-    public string EmitProgram(IrProgram program)
+    public string EmitProgram(Module program)
     {
         StringBuilder body = new();
         StackAllocator alloc = new();
@@ -22,38 +23,38 @@ public class Emitter
         return result.ToString();
     }
     
-    private void EmitInstruction(StringBuilder sb, IrInstruction instr, StackAllocator alloc)
+    private void EmitInstruction(StringBuilder sb, Instruction instr, StackAllocator alloc)
     {
-        switch (instr.Op)
+        switch (instr.OpCode)
         {
-            case IrOp.Add:
+            case Op.Add:
                 LoadOperand(sb, instr.Src1, alloc, "rax");
                 LoadOperand(sb, instr.Src2, alloc, "rbx");
                 sb.AppendLine("    add %rbx, %rax");
                 StoreResult(sb, instr.Dest, alloc, "rax");
                 break;
 
-            case IrOp.Sub:
+            case Op.Sub:
                 LoadOperand(sb, instr.Src1, alloc, "rax");
                 LoadOperand(sb, instr.Src2, alloc, "rbx");
                 sb.AppendLine("    sub %rbx, %rax");
                 StoreResult(sb, instr.Dest, alloc, "rax");
                 break;
 
-            case IrOp.Mul:
+            case Op.Mul:
                 LoadOperand(sb, instr.Src1, alloc, "rax");
                 LoadOperand(sb, instr.Src2, alloc, "rbx");
                 sb.AppendLine("    imul %rbx, %rax");
                 StoreResult(sb, instr.Dest, alloc, "rax");
                 break;
 
-            case IrOp.Mov:
+            case Op.Mov:
                 LoadOperand(sb, instr.Src1, alloc, "rax");
                 StoreResult(sb, instr.Dest, alloc, "rax");
                 break;
 
             default:
-                throw new NotImplementedException($"Unhandled IrOp: {instr.Op}");
+                throw new NotImplementedException($"Unhandled Op: {instr.OpCode}");
         }
         
     }

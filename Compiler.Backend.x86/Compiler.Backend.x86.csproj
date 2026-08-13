@@ -4,10 +4,12 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>Compiler.Backend</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Compiler.IR\Compiler.IR.csproj" />
+      <ProjectReference Include="..\Compiler.Semantic\Compiler.Semantic.csproj" />
     </ItemGroup>
 
 </Project>

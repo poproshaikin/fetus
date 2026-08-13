@@ -47,7 +47,7 @@ public class SemanticAnalyzer
         var expectedType = context.ReturnType ?? VoidType.Instance;
 
         if (actualType != expectedType)
-            throw new TypeMismatchException(expectedType.GetTypeName(), actualType.GetTypeName(), stmt.Line, stmt.Column);
+            throw new TypeMismatchException(expectedType.TypeName, actualType.TypeName, stmt.Line, stmt.Column);
     }
 
     private void AnalyzeIf(If stmt, Scope scope, BlockContext context)
@@ -100,8 +100,8 @@ public class SemanticAnalyzer
 
         if (actualType != targetType)
             throw new TypeMismatchException(
-                targetType.GetTypeName(),
-                actualType.GetTypeName(),
+                targetType.TypeName,
+                actualType.TypeName,
                 stmt.Line,
                 stmt.Column);
     }
@@ -112,7 +112,7 @@ public class SemanticAnalyzer
         var inferredType = stmt.Init != null ? InferType(stmt.Init, scope) : null;
         
         if (inferredType != null && expectedType != inferredType)
-            throw new TypeMismatchException(stmt.TypeName.Name, inferredType.GetTypeName(), stmt.Line, stmt.Column);
+            throw new TypeMismatchException(stmt.TypeName.Name, inferredType.TypeName, stmt.Line, stmt.Column);
             
         scope.Declare(new Symbol(stmt.Identifier.Name, expectedType, stmt.Line, stmt.Column));
     }
@@ -149,20 +149,20 @@ public class SemanticAnalyzer
             AnalyzeStatement(statement, scope, blockContext);
         }
 
-        if (blockContext.ReturnType != null)
-        {
-            var last = block.Body.Last();
-            if (last is not Return @return)
-                throw new MissingReturnException(block.Line, block.Column);
+        if (blockContext.ReturnType == VoidType.Instance) 
+            return;
+        
+        var last = block.Body.Last();
+        if (last is not Return @return)
+            throw new MissingReturnException(last.Line, last.Column);
 
-            var actualType = @return.Value != null ? InferType(@return.Value, scope) : VoidType.Instance;
-            if (blockContext.ReturnType != actualType)
-                throw new TypeMismatchException(
-                    blockContext.ReturnType?.GetTypeName() ?? "void",
-                    actualType.GetTypeName(),
-                    @return.Line,
-                    @return.Column);
-        }
+        var actualType = @return.Value != null ? InferType(@return.Value, scope) : VoidType.Instance;
+        if (blockContext.ReturnType != actualType)
+            throw new TypeMismatchException(
+                blockContext.ReturnType?.TypeName ?? "void",
+                actualType.TypeName,
+                @return.Line,
+                @return.Column);
     }
 
     private TypeInfo InferType(Expression expression, Scope scope)
@@ -203,7 +203,7 @@ public class SemanticAnalyzer
             var argType = InferType(call.Args[i], scope);
             var paramType = functionType.ParamTypes[i];
             if (argType != paramType)
-                throw new TypeMismatchException(paramType.GetTypeName(), argType.GetTypeName(), call.Args[i].Line, call.Args[i].Column);
+                throw new TypeMismatchException(paramType.TypeName, argType.TypeName, call.Args[i].Line, call.Args[i].Column);
         }
 
         return functionType.ReturnType;
@@ -263,7 +263,7 @@ public class SemanticAnalyzer
     private TypeInfo InferEquality(TypeInfo left, TypeInfo right, Binary binary)
     {
         if (left != right)
-            throw new TypeMismatchException(left.GetTypeName(), right.GetTypeName(), binary.Line, binary.Column);
+            throw new TypeMismatchException(left.TypeName, right.TypeName, binary.Line, binary.Column);
 
         return BoolType.Instance;
     }
@@ -278,20 +278,20 @@ public class SemanticAnalyzer
     private static void RequireNumeric(TypeInfo type, Binary binary)
     {
         if (type is not IntType and not FloatType)
-            throw new TypeMismatchException("int/float", type.GetTypeName(), binary.Line, binary.Column);
+            throw new TypeMismatchException("int/float", type.TypeName, binary.Line, binary.Column);
     }
 
     private static void RequireType(TypeInfo type, TypeInfo expected, Binary binary)
     {
         if (type != expected)
-            throw new TypeMismatchException(expected.GetTypeName(), type.GetTypeName(), binary.Line, binary.Column);
+            throw new TypeMismatchException(expected.TypeName, type.TypeName, binary.Line, binary.Column);
     }
     
     private readonly Scope _globalScope = new();
     private readonly TypeTable _typeTable = new();
 
-    private readonly record struct BlockContext(bool InLoop, TypeInfo? ReturnType)
+    private readonly record struct BlockContext(bool InLoop, TypeInfo ReturnType)
     {
-        public static readonly BlockContext TopLevel = new(false, null);
+        public static readonly BlockContext TopLevel = new(false, IntType.Int32);
     }
 }

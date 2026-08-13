@@ -14,7 +14,8 @@ public abstract record TypeInfo
 {
     public abstract TypeKind Kind { get; }
 
-    public abstract string GetTypeName();
+    public abstract string TypeName { get; }
+    public abstract int Size { get; }
 }
 
 // Bits is 32 | 64
@@ -25,7 +26,8 @@ public sealed record IntType : TypeInfo
 
     public override TypeKind Kind => TypeKind.Int;
     public int Bits { get; }
-    public override string GetTypeName() => Bits == 64 ? "int64" : "int";
+    public override string TypeName => Bits == 64 ? "int64" : "int";
+    public override int Size => Bits / 8;
 
     private IntType(int bits)
     {
@@ -41,7 +43,8 @@ public sealed record FloatType : TypeInfo
 
     public override TypeKind Kind => TypeKind.Float;
     public int Bits { get; }
-    public override string GetTypeName() => Bits == 64 ? "float64" : "float";
+    public override string TypeName => Bits == 64 ? "float64" : "float";
+    public override int Size => Bits / 8;
 
     private FloatType(int bits)
     {
@@ -54,7 +57,8 @@ public sealed record BoolType : TypeInfo
     public static readonly BoolType Instance = new();
 
     public override TypeKind Kind => TypeKind.Bool;
-    public override string GetTypeName() => "bool";
+    public override string TypeName => "bool";
+    public override int Size => 1;
 
     private BoolType()
     {
@@ -66,7 +70,8 @@ public sealed record StringType : TypeInfo
     public static readonly StringType Instance = new();
 
     public override TypeKind Kind => TypeKind.String;
-    public override string GetTypeName() => "string";
+    public override string TypeName => "string";
+    public override int Size => 8;
 
     private StringType()
     {
@@ -78,7 +83,8 @@ public sealed record VoidType : TypeInfo
     public static readonly VoidType Instance = new();
 
     public override TypeKind Kind => TypeKind.Void;
-    public override string GetTypeName() => "void";
+    public override string TypeName => "void";
+    public override int Size => throw new InvalidOperationException("void has no size");
 
     private VoidType()
     {
@@ -91,8 +97,9 @@ public sealed record FunctionType : TypeInfo
     public required TypeInfo ReturnType { get; init; }
     public required List<TypeInfo> ParamTypes { get; init; }
 
-    public override string GetTypeName() =>
-        $"func({string.Join(", ", ParamTypes.Select(p => p.GetTypeName()))}) -> {ReturnType.GetTypeName()}";
+    public override string TypeName =>
+        $"func({string.Join(", ", ParamTypes.Select(p => p.TypeName))}) -> {ReturnType.TypeName}";
+    public override int Size => throw new InvalidOperationException("function type has no size");
 
     public bool Equals(FunctionType? other) =>
         other is not null

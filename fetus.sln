@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.IR", "Compiler.IR\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Consos", "Consos\Consos.csproj", "{D6426C84-F670-4D08-B91C-3E4AE2225EC3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.Backend", "Compiler.Backend\Compiler.Backend.csproj", "{B2A6DFC4-F787-4582-A342-EF03578BCD8C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.Backend.x86", "Compiler.Backend.x86\Compiler.Backend.x86.csproj", "{B2A6DFC4-F787-4582-A342-EF03578BCD8C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.AST", "Compiler.AST\Compiler.AST.csproj", "{F8C7FC9E-FCCD-455E-AC39-C8C7F739E2CF}"
 EndProject
