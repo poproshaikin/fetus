@@ -1,4 +1,4 @@
-﻿using Compiler.IR;
+using Compiler.IR;
 
 namespace Compiler.CodeGen.x86;
 
@@ -6,61 +6,43 @@ public class CodeGenX86 : CodeGen
 {
     public override string EmitAssembly(Module module)
     {
-        string result =
-            """
-            .text
-            .global main
-
-
-            """;
+        var lines = new List<AsmLine>
+        {
+            new AsmDirective(".text"),
+            new AsmDirective(".global main"),
+        };
 
         foreach (var function in module.Functions)
-        {
-            result += EmitFunction(function) + "\n\n";
-        }
+            lines.AddRange(EmitFunction(function));
 
-        return result;
+        return Print(lines);
     }
 
-    public string EmitFunction(Function function)
+    public List<AsmLine> EmitFunction(Function function)
     {
-        string result = 
-            $"""
-             {function.Name}:
-             push %rbp
-             mov %rsp, %rbp
-             sub ${function.FrameSize}, %rsp
-
-
-             """;
+        var lines = new List<AsmLine>
+        {
+            new AsmLabel(function.Name),
+            new AsmInstr("push", "%rbp"),
+            new AsmInstr("mov", "%rsp", "%rbp"),
+            new AsmInstr("sub", $"${function.FrameSize}", "%rsp"),
+        };
 
         foreach (var instruction in function.Instructions)
         {
-            var emitted = function.Name == "main" && instruction.OpCode == OpCode.Ret
+            lines.AddRange(function.Name == "main" && instruction.OpCode == OpCode.Ret
                 ? EmitMainEpilogue(instruction)
-                : EmitInstruction(instruction);
-            result += emitted + "\n";
+                : EmitInstruction(instruction));
         }
 
-        if (function.Name == "main")
-            result +=
-                """
+        lines.AddRange(function.Name == "main"
+            ? [new AsmInstr("mov", "$60", "%rax"), new AsmInstr("syscall")]
+            : [new AsmInstr("leave"), new AsmInstr("ret")]);
 
-                mov $60, %rax
-                syscall
-                """;
-        else
-            result +=
-                """
-
-                leave
-                ret
-                """;
-
-        return result;
+        return lines;
     }
 
-    public string EmitInstruction(Instruction instruction)
+    public List<AsmLine> EmitInstruction(Instruction instruction)
     {
         return instruction.OpCode switch
         {
@@ -68,90 +50,91 @@ public class CodeGenX86 : CodeGen
             OpCode.Div => EmitDiv(instruction),
             OpCode.CmpEq or OpCode.CmpNotEq or OpCode.CmpLt or OpCode.CmpGt or OpCode.CmpLtEq or OpCode.CmpGtEq => EmitSetCc(instruction),
             OpCode.Mov => EmitMov(instruction),
-            OpCode.Label => EmitLabel(instruction.Target!) + ": ",
+            OpCode.Label => [new AsmLabel(EmitLabel(instruction.Target!))],
             OpCode.Jump or OpCode.JumpIfFalse or OpCode.JumpIfTrue => EmitJump(instruction),
             OpCode.Param or OpCode.Call or OpCode.Ret => EmitCallingConvention(instruction),
             _ => throw new ArgumentOutOfRangeException(nameof(instruction.OpCode))
         };
     }
 
-    private string EmitMainEpilogue(Instruction instruction)
+    private List<AsmLine> EmitMainEpilogue(Instruction instruction)
     {
-        return $"""
-                {(instruction.Src1 != null ? $"mov {EmitOperand(instruction.Src1)}, %rdi" : "xor %rdi, %rdi")}
-                mov $60, %rax
-                syscall
-                """;
+        return
+        [
+            instruction.Src1 != null
+                ? new AsmInstr("mov", EmitOperand(instruction.Src1), "%rdi")
+                : new AsmInstr("xor", "%rdi", "%rdi"),
+            new AsmInstr("mov", "$60", "%rax"),
+            new AsmInstr("syscall"),
+        ];
     }
 
-    private string EmitCallingConvention(Instruction instruction)
+    private List<AsmLine> EmitCallingConvention(Instruction instruction)
     {
         if (instruction.OpCode == OpCode.Param)
-            return "push " + EmitOperand(instruction.Src1!);
+            return [new AsmInstr("push", EmitOperand(instruction.Src1!))];
 
         if (instruction.OpCode == OpCode.Call)
         {
-            string call = 
-                $"""
-                 call {instruction.Callee}
-                 add ${8 * instruction.ArgCount}, %rsp
-                 """;
+            var lines = new List<AsmLine>
+            {
+                new AsmInstr("call", instruction.Callee!),
+                new AsmInstr("add", $"${8 * instruction.ArgCount}", "%rsp"),
+            };
 
             if (instruction.Dest != null)
-                call += $"\nmov %rax, {EmitStackEntry(instruction.Dest)}";
+                lines.Add(new AsmInstr("mov", "%rax", EmitStackEntry(instruction.Dest)));
 
-            return call;
+            return lines;
         }
 
         if (instruction.OpCode == OpCode.Ret)
         {
-            return $"""
-                    {(instruction.Src1 != null ? $"mov {EmitOperand(instruction.Src1)}, %rax" : "")}
-                    leave
-                    ret
-                    """;
+            var lines = new List<AsmLine>();
+
+            if (instruction.Src1 != null)
+                lines.Add(new AsmInstr("mov", EmitOperand(instruction.Src1), "%rax"));
+
+            lines.Add(new AsmInstr("leave"));
+            lines.Add(new AsmInstr("ret"));
+            return lines;
         }
-        
+
         throw new ArgumentOutOfRangeException(nameof(instruction.OpCode));
     }
 
-    private string EmitJump(Instruction instruction)
+    private List<AsmLine> EmitJump(Instruction instruction)
     {
         if (instruction.OpCode == OpCode.Jump)
-            return "jmp " + EmitLabel(instruction.Target!);
-        
-        // if condition jump
+            return [new AsmInstr("jmp", EmitLabel(instruction.Target!))];
+
         string cond = EmitOperand(instruction.Src1!);
-        // mov cond, %rax
-        // cmp $0, %rax
         string target = EmitLabel(instruction.Target!);
-        // jne label
         string mnemonic = instruction.OpCode == OpCode.JumpIfFalse ? "je" : "jne";
 
-        return $"""
-                mov {cond}, %rax
-                cmp $0, %rax
-                {mnemonic} {target}
-                """;
+        return
+        [
+            new AsmInstr("mov", cond, "%rax"),
+            new AsmInstr("cmp", "$0", "%rax"),
+            new AsmInstr(mnemonic, target),
+        ];
     }
 
-    private string EmitLabel(Label label)
-    {
-        return $"L{label.Id}";
-    }
+    private string EmitLabel(Label label) => $"L{label.Id}";
 
-    private string EmitMov(Instruction mov)
+    private List<AsmLine> EmitMov(Instruction mov)
     {
         string src1 = EmitOperand(mov.Src1!);
         string dest = EmitStackEntry(mov.Dest!);
 
-        return $"""
-                mov {src1}, %rax
-                mov %rax, {dest}
-                """;
+        return
+        [
+            new AsmInstr("mov", src1, "%rax"),
+            new AsmInstr("mov", "%rax", dest),
+        ];
     }
 
-    private string EmitSetCc(Instruction setcc)
+    private List<AsmLine> EmitSetCc(Instruction setcc)
     {
         string mnemonic = setcc.OpCode switch
         {
@@ -168,17 +151,18 @@ public class CodeGenX86 : CodeGen
         string src2 = EmitOperand(setcc.Src2!);
         string dest = EmitStackEntry(setcc.Dest!);
 
-        return $"""
-                mov {src1}, %rax
-                mov {src2}, %rbx
-                cmp %rbx, %rax
-                {mnemonic} %al
-                movzbq %al, %rax
-                mov %rax, {dest}
-                """;
+        return
+        [
+            new AsmInstr("mov", src1, "%rax"),
+            new AsmInstr("mov", src2, "%rbx"),
+            new AsmInstr("cmp", "%rbx", "%rax"),
+            new AsmInstr(mnemonic, "%al"),
+            new AsmInstr("movzbq", "%al", "%rax"),
+            new AsmInstr("mov", "%rax", dest),
+        ];
     }
 
-    private string EmitArithmetic(Instruction arithmetic)
+    private List<AsmLine> EmitArithmetic(Instruction arithmetic)
     {
         var mnemonic = arithmetic.OpCode switch
         {
@@ -187,32 +171,34 @@ public class CodeGenX86 : CodeGen
             OpCode.Mul => "imul",
             _ => throw new ArgumentOutOfRangeException(nameof(arithmetic.OpCode))
         };
-        
+
         string src1 = EmitOperand(arithmetic.Src1!);
         string src2 = EmitOperand(arithmetic.Src2!);
         string dest = EmitStackEntry(arithmetic.Dest!);
 
-        return $"""
-                mov {src1}, %rax
-                mov {src2}, %rbx
-                {mnemonic} %rbx, %rax
-                mov %rax, {dest}
-                """;
+        return
+        [
+            new AsmInstr("mov", src1, "%rax"),
+            new AsmInstr("mov", src2, "%rbx"),
+            new AsmInstr(mnemonic, "%rbx", "%rax"),
+            new AsmInstr("mov", "%rax", dest),
+        ];
     }
-    
-    private string EmitDiv(Instruction instruction)
+
+    private List<AsmLine> EmitDiv(Instruction instruction)
     {
         string src1 = EmitOperand(instruction.Src1!);
         string src2 = EmitOperand(instruction.Src2!);
         string dest = EmitStackEntry(instruction.Dest!);
 
-        return $"""
-                mov {src1}, %rax
-                mov {src2}, %rbx
-                cqo
-                idiv %rbx
-                mov %rax, {dest}
-                """;
+        return
+        [
+            new AsmInstr("mov", src1, "%rax"),
+            new AsmInstr("mov", src2, "%rbx"),
+            new AsmInstr("cqo"),
+            new AsmInstr("idiv", "%rbx"),
+            new AsmInstr("mov", "%rax", dest),
+        ];
     }
 
     private string EmitOperand(Operand operand) => operand switch
@@ -223,4 +209,15 @@ public class CodeGenX86 : CodeGen
     };
 
     private string EmitStackEntry(StackEntry entry) => entry.Offset + "(%rbp)";
+
+    private static string Print(IEnumerable<AsmLine> lines) => string.Join("\n", lines.Select(Print)) + "\n";
+
+    private static string Print(AsmLine line) => line switch
+    {
+        AsmInstr { Operands.Length: 0 } i => i.Mnemonic,
+        AsmInstr i => $"{i.Mnemonic} {string.Join(", ", i.Operands)}",
+        AsmLabel l => $"{l.Name}:",
+        AsmDirective d => d.Text,
+        _ => throw new ArgumentOutOfRangeException(nameof(line)),
+    };
 }
