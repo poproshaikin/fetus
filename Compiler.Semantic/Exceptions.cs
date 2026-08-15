@@ -99,6 +99,17 @@ public sealed class UndefinedTypeException : SemanticException
     }
 }
 
+public sealed class NestedFunctionException : SemanticException
+{
+    public string FunctionName { get; }
+
+    public NestedFunctionException(string functionName, int line, int column)
+        : base($"Nested function declarations are not allowed ('{functionName}')", line, column)
+    {
+        FunctionName = functionName;
+    }
+}
+
 public sealed class MissingReturnException : SemanticException
 {
     public MissingReturnException(int line, int column)

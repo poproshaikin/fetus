@@ -1,6 +1,6 @@
 namespace Compiler.Semantic;
 
-public class Scope
+internal class Scope
 {
     public Scope? Parent { get; }
 

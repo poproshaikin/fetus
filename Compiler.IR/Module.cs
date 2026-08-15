@@ -2,12 +2,9 @@ namespace Compiler.IR;
 
 public class Module
 {
-    public IReadOnlyList<Instruction> Instructions => _instructions;
-
-    internal Module(List<Instruction> instructions)
-    {
-        _instructions = instructions;
-    }
-
-    private readonly List<Instruction> _instructions;
+    public IReadOnlyList<Function> Functions => _functions;                                                                                                                                                                      
+    
+    internal Module(List<Function> functions) => _functions = functions;                                                                                                                                                         
+    
+    private readonly List<Function> _functions;   
 }

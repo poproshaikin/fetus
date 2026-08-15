@@ -8,9 +8,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Compiler.Backend.x86\Compiler.Backend.x86.csproj" />
       <ProjectReference Include="..\Compiler.Frontend\Compiler.Frontend.csproj" />
       <ProjectReference Include="..\Compiler.IR\Compiler.IR.csproj" />
+      <ProjectReference Include="..\Compiler.Lowering\Compiler.Lowering.csproj" />
       <ProjectReference Include="..\Compiler.Semantic\Compiler.Semantic.csproj" />
     </ItemGroup>
 

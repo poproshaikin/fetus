@@ -4,212 +4,255 @@ namespace Compiler.Semantic;
 
 public class SemanticAnalyzer
 {
-    public AnalysisResult Analyze(Program program)
+    public SemanticAnalyzer(Program program)
     {
-        var result = new AnalysisResult();
-
-        foreach (var statement in program.Body)
-            AnalyzeStatement(statement, _globalScope, result.Diagnostics);
-
-        return result;
+        _program = program;
     }
 
-    private void AnalyzeStatement(Statement stmt, Scope scope, List<SemanticException> diagnostics)
+    public BoundProgram Analyze()
     {
-        // try
-        // {
-            AnalyzeStatement(stmt, scope, BlockContext.TopLevel);
-        // }
-        // catch (SemanticException e)
-        // {
-        //     diagnostics.Add(e);
-        // }
+        var body = new List<BoundStatement>();
+        foreach (var statement in _program.Body)
+            body.Add(BindStatement(statement));
+
+        return new BoundProgram(body);
     }
 
-    private void AnalyzeStatement(Statement stmt, Scope scope, BlockContext context)
+    private readonly Program _program;
+    private readonly TypeTable _typeTable = new();
+    private Scope _scope = new();
+    private BlockContext _context = BlockContext.TopLevel;
+    private bool _inBlock;
+
+    private BoundStatement BindStatement(Statement stmt)
     {
-        switch (stmt.Kind)
+        return stmt.Kind switch
         {
-            case NodeKind.VarDecl: AnalyzeVarDecl((VarDecl)stmt, scope); break;
-            case NodeKind.FuncDecl: AnalyzeFuncDecl((FuncDecl)stmt, scope); break;
-            case NodeKind.ExprStatement: AnalyzeExprStatement((ExprStatement)stmt, scope); break;
-            case NodeKind.If: AnalyzeIf((If)stmt, scope, context); break;
-            case NodeKind.While: AnalyzeWhile((While)stmt, scope, context); break;
-            case NodeKind.Return: AnalyzeReturn((Return)stmt, scope, context); break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
+            NodeKind.VarDecl => BindVarDecl((VarDecl)stmt),
+            NodeKind.FuncDecl => BindFuncDecl((FuncDecl)stmt),
+            NodeKind.ExprStatement => BindExprStatement((ExprStatement)stmt),
+            NodeKind.If => BindIf((If)stmt),
+            NodeKind.While => BindWhile((While)stmt),
+            NodeKind.Return => BindReturn((Return)stmt),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
     }
 
-    private void AnalyzeReturn(Return stmt, Scope scope, BlockContext context)
+    private BoundReturn BindReturn(Return stmt)
     {
-        var actualType = stmt.Value != null ? InferType(stmt.Value, scope) : VoidType.Instance;
-        var expectedType = context.ReturnType ?? VoidType.Instance;
+        var value = stmt.Value != null ? BindExpression(stmt.Value) : null;
+        var actualType = value?.Type ?? VoidType.Instance;
+        var expectedType = _context.ReturnType ?? VoidType.Instance;
 
         if (actualType != expectedType)
             throw new TypeMismatchException(expectedType.TypeName, actualType.TypeName, stmt.Line, stmt.Column);
+
+        return new BoundReturn(value);
     }
 
-    private void AnalyzeIf(If stmt, Scope scope, BlockContext context)
+    private BoundIf BindIf(If stmt)
     {
-        if (InferType(stmt.Condition, scope) != BoolType.Instance)
+        var condition = BindExpression(stmt.Condition);
+        if (condition.Type != BoolType.Instance)
             throw new InvalidConditionException(stmt.Condition.Line, stmt.Condition.Column);
 
-        AnalyzeBlock(stmt.Then, scope.CreateChild(), context);
+        var then = BindBlockInChildScope(stmt.Then);
 
-        switch (stmt.Else)
+        BoundNode? boundElse = stmt.Else switch
         {
-            case null:
-                break;
-            case Block elseBlock:
-                AnalyzeBlock(elseBlock, scope.CreateChild(), context);
-                break;
-            case If elseIf:
-                AnalyzeIf(elseIf, scope, context);
-                break;
-        }
+            null => null,
+            Block elseBlock => BindBlockInChildScope(elseBlock),
+            If elseIf => BindIf(elseIf),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+
+        return new BoundIf(condition, then, boundElse);
     }
-    
-    private void AnalyzeWhile(While stmt, Scope scope, BlockContext context)
+
+    private BoundWhile BindWhile(While stmt)
     {
-        if (InferType(stmt.Condition, scope) != BoolType.Instance)
+        var condition = BindExpression(stmt.Condition);
+        if (condition.Type != BoolType.Instance)
             throw new InvalidConditionException(stmt.Condition.Line, stmt.Condition.Column);
 
-        AnalyzeBlock(stmt.Body, scope.CreateChild(), context with { InLoop = true });
+        var savedScope = _scope;
+        var savedContext = _context;
+
+        _scope = _scope.CreateChild();
+        _context = _context with { InLoop = true };
+        var body = BindBlock(stmt.Body);
+
+        _scope = savedScope;
+        _context = savedContext;
+
+        return new BoundWhile(condition, body);
     }
 
-    private void AnalyzeExprStatement(ExprStatement stmt, Scope scope)
+    private BoundExprStatement BindExprStatement(ExprStatement stmt)
     {
-        switch (stmt.Expression.Kind)
+        var expr = stmt.Expression.Kind switch
         {
-            case NodeKind.Assignment: AnalyzeAssignment((Assignment)stmt.Expression, scope); break;
-            case NodeKind.Call: InferType(stmt.Expression, scope); break;
-            default:
-                throw new UnsupportedStatementException(stmt.Line, stmt.Column);
-        }
+            NodeKind.Assignment => BindAssignment((Assignment)stmt.Expression),
+            NodeKind.Call => BindExpression(stmt.Expression),
+            _ => throw new UnsupportedStatementException(stmt.Line, stmt.Column),
+        };
+
+        return new BoundExprStatement(expr);
     }
 
-    private void AnalyzeAssignment(Assignment stmt, Scope scope)
+    private BoundAssignment BindAssignment(Assignment stmt)
     {
-        var targetSymbol = scope.Resolve(stmt.Target.Name);
+        var targetSymbol = _scope.Resolve(stmt.Target.Name);
         if (targetSymbol == null)
             throw new UndefinedSymbolException(stmt.Target.Name, stmt.Line, stmt.Column);
 
         var targetType = targetSymbol.Type;
-        var actualType = InferType(stmt.Value, scope);
+        var value = BindExpression(stmt.Value);
 
-        if (actualType != targetType)
+        if (value.Type != targetType)
             throw new TypeMismatchException(
                 targetType.TypeName,
-                actualType.TypeName,
+                value.Type.TypeName,
                 stmt.Line,
                 stmt.Column);
+
+        return new BoundAssignment(targetType, stmt.Target.Name, value);
     }
 
-    private void AnalyzeVarDecl(VarDecl stmt, Scope scope)
+    private BoundVarDecl BindVarDecl(VarDecl stmt)
     {
         var expectedType = _typeTable.GetOrThrow(stmt.TypeName);
-        var inferredType = stmt.Init != null ? InferType(stmt.Init, scope) : null;
-        
-        if (inferredType != null && expectedType != inferredType)
-            throw new TypeMismatchException(stmt.TypeName.Name, inferredType.TypeName, stmt.Line, stmt.Column);
-            
-        scope.Declare(new Symbol(stmt.Identifier.Name, expectedType, stmt.Line, stmt.Column));
+        var init = stmt.Init != null ? BindExpression(stmt.Init) : null;
+
+        if (init != null && expectedType != init.Type)
+            throw new TypeMismatchException(stmt.TypeName.Name, init.Type.TypeName, stmt.Line, stmt.Column);
+
+        _scope.Declare(new Symbol(stmt.Identifier.Name, expectedType, stmt.Line, stmt.Column));
+
+        return new BoundVarDecl(expectedType, stmt.Identifier.Name, init);
     }
 
-    private void AnalyzeFuncDecl(FuncDecl func, Scope scope)
+    private BoundFuncDecl BindFuncDecl(FuncDecl func)
     {
-        if (scope.Resolve(func.Identifier.Name) is not null)
+        if (_inBlock)
+            throw new NestedFunctionException(func.Identifier.Name, func.Identifier.Line, func.Identifier.Column);
+
+        if (_scope.Resolve(func.Identifier.Name) is not null)
             throw new DuplicateDeclarationException(func.Identifier.Name, func.Identifier.Line, func.Identifier.Column);
-        
+
         var returnType = _typeTable.GetOrThrow(func.ReturnType);
-        var funcScope = scope.CreateChild();
+
+        var savedScope = _scope;
+        var savedContext = _context;
+
+        _scope = _scope.CreateChild();
+
+        var boundParams = new List<BoundParamDecl>();
         var paramTypes = new List<TypeInfo>();
 
         foreach (var param in func.Params)
         {
             var paramType = _typeTable.GetOrThrow(param.Type);
             paramTypes.Add(paramType);
-            funcScope.Declare(new Symbol(param.Identifier.Name, paramType, param.Line, param.Column));
+            boundParams.Add(new BoundParamDecl(paramType, param.Identifier.Name));
+            _scope.Declare(new Symbol(param.Identifier.Name, paramType, param.Line, param.Column));
         }
 
         var functionType = new FunctionType { ReturnType = returnType, ParamTypes = paramTypes };
-        scope.Declare(new Symbol(func.Identifier.Name, functionType, func.Identifier.Line, func.Identifier.Column));
+        savedScope.Declare(new Symbol(func.Identifier.Name, functionType, func.Identifier.Line, func.Identifier.Column));
 
-        AnalyzeBlock(func.Body, funcScope, new BlockContext { InLoop = false, ReturnType = returnType });
+        _context = new BlockContext { InLoop = false, ReturnType = returnType };
+        var body = BindBlock(func.Body);
+
+        _scope = savedScope;
+        _context = savedContext;
+
+        return new BoundFuncDecl(func.Identifier.Name, returnType, boundParams, body);
     }
 
-    private void AnalyzeBlock(Block block, Scope scope, BlockContext blockContext)
+    private BoundBlock BindBlock(Block block)
     {
-        if (block.Body.Count == 0)
-            return;
-        
+        var savedInBlock = _inBlock;
+        _inBlock = true;
+
+        var body = new List<BoundStatement>();
         foreach (var statement in block.Body)
+            body.Add(BindStatement(statement));
+
+        if (block.Body.Count > 0 && _context.ReturnType != VoidType.Instance)
         {
-            AnalyzeStatement(statement, scope, blockContext);
+            var last = block.Body.Last();
+            if (last is not Return)
+                throw new MissingReturnException(last.Line, last.Column);
         }
 
-        if (blockContext.ReturnType == VoidType.Instance) 
-            return;
-        
-        var last = block.Body.Last();
-        if (last is not Return @return)
-            throw new MissingReturnException(last.Line, last.Column);
-
-        var actualType = @return.Value != null ? InferType(@return.Value, scope) : VoidType.Instance;
-        if (blockContext.ReturnType != actualType)
-            throw new TypeMismatchException(
-                blockContext.ReturnType?.TypeName ?? "void",
-                actualType.TypeName,
-                @return.Line,
-                @return.Column);
+        _inBlock = savedInBlock;
+        return new BoundBlock(body);
     }
 
-    private TypeInfo InferType(Expression expression, Scope scope)
+    private BoundBlock BindBlockInChildScope(Block block)
+    {
+        var saved = _scope;
+        _scope = _scope.CreateChild();
+        var bound = BindBlock(block);
+        _scope = saved;
+        return bound;
+    }
+
+    private BoundExpression BindExpression(Expression expression)
     {
         return expression.Kind switch
         {
-            NodeKind.Literal => InferLiteral((Literal)expression),
-            NodeKind.Binary => InferBinary((Binary)expression, scope),
-            NodeKind.Call => InferCall((Call)expression, scope),
-            NodeKind.Identifier => InferIdentifier((Identifier)expression, scope),
+            NodeKind.Literal => BindLiteral((Literal)expression),
+            NodeKind.Binary => BindBinary((Binary)expression),
+            NodeKind.Call => BindCall((Call)expression),
+            NodeKind.Identifier => BindIdentifier((Identifier)expression),
             _ => throw new UnsupportedExpressionException(expression.Line, expression.Column),
         };
     }
 
-    private TypeInfo InferIdentifier(Identifier identifier, Scope scope)
+    private BoundIdentifier BindIdentifier(Identifier identifier)
     {
-        var symbol = 
-            scope.Resolve(identifier.Name) ??
+        var symbol =
+            _scope.Resolve(identifier.Name) ??
             throw new UndefinedSymbolException(identifier.Name, identifier.Line, identifier.Column);
 
-        return symbol.Type;
+        return new BoundIdentifier(symbol.Type, identifier.Name);
     }
 
-    private TypeInfo InferCall(Call call, Scope scope)
+    private BoundCall BindCall(Call call)
     {
         if (call.Callee is not Identifier callee)
             throw new NotCallableException(call.Callee.Kind.ToString(), call.Line, call.Column);
 
-        var symbol = scope.Resolve(callee.Name) ?? throw new UndefinedSymbolException(callee.Name, callee.Line, callee.Column);
+        var symbol = _scope.Resolve(callee.Name) ?? throw new UndefinedSymbolException(callee.Name, callee.Line, callee.Column);
         if (symbol.Type is not FunctionType functionType)
             throw new NotCallableException(symbol.Name, symbol.Line, symbol.Column);
 
         if (call.Args.Count != functionType.ParamTypes.Count)
             throw new ArgumentCountMismatchException(functionType.ParamTypes.Count, call.Args.Count, call.Line, call.Column);
 
+        var boundArgs = new List<BoundExpression>();
         for (var i = 0; i < call.Args.Count; i++)
         {
-            var argType = InferType(call.Args[i], scope);
+            var arg = BindExpression(call.Args[i]);
             var paramType = functionType.ParamTypes[i];
-            if (argType != paramType)
-                throw new TypeMismatchException(paramType.TypeName, argType.TypeName, call.Args[i].Line, call.Args[i].Column);
+            if (arg.Type != paramType)
+                throw new TypeMismatchException(paramType.TypeName, arg.Type.TypeName, call.Args[i].Line, call.Args[i].Column);
+
+            boundArgs.Add(arg);
         }
 
-        return functionType.ReturnType;
+        return new BoundCall(functionType.ReturnType, callee.Name, boundArgs);
     }
 
-    private TypeInfo InferLiteral(Literal literal)
+    private BoundLiteral BindLiteral(Literal literal)
+    {
+        var type = InferLiteralType(literal);
+        return new BoundLiteral(type, literal.Value);
+    }
+
+    private TypeInfo InferLiteralType(Literal literal)
     {
         if (literal.Value is string)
             return StringType.Instance;
@@ -223,27 +266,29 @@ public class SemanticAnalyzer
         throw new UnsupportedLiteralException(literal.Line, literal.Column);
     }
 
-    private TypeInfo InferBinary(Binary binary, Scope scope)
+    private BoundBinary BindBinary(Binary binary)
     {
-        var left = InferType(binary.Left, scope);
-        var right = InferType(binary.Right, scope);
+        var left = BindExpression(binary.Left);
+        var right = BindExpression(binary.Right);
 
-        return binary.Operator switch
+        var type = binary.Operator switch
         {
             BinaryOperator.Plus or BinaryOperator.Minus or BinaryOperator.Star or BinaryOperator.Slash =>
-                InferArithmetic(left, right, binary),
+                InferArithmetic(left.Type, right.Type, binary),
 
             BinaryOperator.Lt or BinaryOperator.Gt or BinaryOperator.LtEq or BinaryOperator.GtEq =>
-                InferComparison(left, right, binary),
+                InferComparison(left.Type, right.Type, binary),
 
             BinaryOperator.Eq or BinaryOperator.NotEq =>
-                InferEquality(left, right, binary),
+                InferEquality(left.Type, right.Type, binary),
 
             BinaryOperator.And or BinaryOperator.Or =>
-                InferLogical(left, right, binary),
+                InferLogical(left.Type, right.Type, binary),
 
             _ => throw new ArgumentOutOfRangeException(),
         };
+
+        return new BoundBinary(type, left, right, binary.Operator);
     }
 
     private TypeInfo InferArithmetic(TypeInfo left, TypeInfo right, Binary binary)
@@ -286,9 +331,6 @@ public class SemanticAnalyzer
         if (type != expected)
             throw new TypeMismatchException(expected.TypeName, type.TypeName, binary.Line, binary.Column);
     }
-    
-    private readonly Scope _globalScope = new();
-    private readonly TypeTable _typeTable = new();
 
     private readonly record struct BlockContext(bool InLoop, TypeInfo ReturnType)
     {
