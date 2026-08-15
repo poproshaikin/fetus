@@ -8,4 +8,5 @@ public sealed record Instruction(
     Operand? Src1,
     Operand? Src2,
     Label? Target = null,
-    string? Callee = null);
+    string? Callee = null,
+    int? ArgCount = null);

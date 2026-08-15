@@ -269,6 +269,6 @@ public class Lowerer
         foreach (var p in call.Args.Select(LowerExpression).Reverse())
             _builder.SetParam(p);
 
-        return _builder.Call(call.Callee, call.Type)!;
+        return _builder.Call(call.Callee, call.Type, call.Args.Count)!;
     }
 }

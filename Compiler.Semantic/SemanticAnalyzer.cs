@@ -164,11 +164,30 @@ public class SemanticAnalyzer
         _context = new BlockContext { InLoop = false, ReturnType = returnType };
         var body = BindBlock(func.Body);
 
+        if (returnType != VoidType.Instance && !BlockDefinitelyReturns(func.Body))
+            throw new MissingReturnException(func.Identifier.Line, func.Identifier.Column);
+
         _scope = savedScope;
         _context = savedContext;
 
         return new BoundFuncDecl(func.Identifier.Name, returnType, boundParams, body);
     }
+
+    private static bool BlockDefinitelyReturns(Block block) => block.Body.Any(StatementDefinitelyReturns);
+
+    private static bool StatementDefinitelyReturns(Statement stmt) => stmt switch
+    {
+        Return => true,
+        If ifStmt when ifStmt.Else != null => BlockDefinitelyReturns(ifStmt.Then) && ElseDefinitelyReturns(ifStmt.Else),
+        _ => false,
+    };
+
+    private static bool ElseDefinitelyReturns(Node elseNode) => elseNode switch
+    {
+        Block block => BlockDefinitelyReturns(block),
+        If ifStmt => StatementDefinitelyReturns(ifStmt),
+        _ => false,
+    };
 
     private BoundBlock BindBlock(Block block)
     {
@@ -178,13 +197,6 @@ public class SemanticAnalyzer
         var body = new List<BoundStatement>();
         foreach (var statement in block.Body)
             body.Add(BindStatement(statement));
-
-        if (block.Body.Count > 0 && _context.ReturnType != VoidType.Instance)
-        {
-            var last = block.Body.Last();
-            if (last is not Return)
-                throw new MissingReturnException(last.Line, last.Column);
-        }
 
         _inBlock = savedInBlock;
         return new BoundBlock(body);

@@ -82,10 +82,10 @@ public class ModuleBuilder
         _instructions.Add(new Instruction(OpCode.Param, null, new EntryOperand(value), null));
     }
     
-    public AnonStackEntry? Call(string callee, TypeInfo returnType)
+    public AnonStackEntry? Call(string callee, TypeInfo returnType, int argCount)
     {
         var dest = returnType == VoidType.Instance ? null : _stack.PushAnon(returnType);
-        _instructions.Add(new Instruction(OpCode.Call, dest, null, null, Callee: callee));
+        _instructions.Add(new Instruction(OpCode.Call, dest, null, null, Callee: callee, ArgCount: argCount));
         return dest;
     }
 

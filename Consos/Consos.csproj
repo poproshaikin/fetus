@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Compiler.CodeGen.x86\Compiler.CodeGen.x86.csproj" />
       <ProjectReference Include="..\Compiler.Frontend\Compiler.Frontend.csproj" />
       <ProjectReference Include="..\Compiler.IR\Compiler.IR.csproj" />
       <ProjectReference Include="..\Compiler.Lowering\Compiler.Lowering.csproj" />

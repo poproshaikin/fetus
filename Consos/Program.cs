@@ -1,5 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using Compiler.CodeGen.x86;
 using Compiler.Frontend;
 using Compiler.IR;
 using Compiler.Lowering;
@@ -42,6 +43,12 @@ foreach (var loweredFunction in lowered.Functions)
     Console.WriteLine();
 }
 
+string asm = new CodeGenX86().Compile(lowered, "out");
+
+Console.WriteLine(asm);
+
+
+
 string FormatInstruction(Instruction i)
 {
     if (i.OpCode == OpCode.Label)
@@ -63,7 +70,7 @@ string FormatInstruction(Instruction i)
 string FormatEntry(StackEntry entry) => entry switch
 {
     NamedStackEntry n => n.Name,
-    AnonStackEntry a => $"@{a.Offset}",
+    AnonStackEntry a => $"{a.Offset}",
     _ => entry.ToString()!,
 };
 

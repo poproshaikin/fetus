@@ -9,11 +9,6 @@ internal class Scope
         _symbols = symbols ?? [];
     }
 
-    private Scope(Scope parent) : this()
-    {
-        Parent = parent;
-    }
-
     public void Declare(Symbol sym)
     {
         if (_symbols.Contains(sym))
@@ -33,4 +28,9 @@ internal class Scope
     }
     
     private readonly List<Symbol> _symbols;
+
+    private Scope(Scope parent) : this()
+    {
+        Parent = parent;
+    }
 }

@@ -12,6 +12,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.Semantic", "Compil
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.Lowering", "Compiler.Lowering\Compiler.Lowering.csproj", "{0E27A22A-C611-417C-A768-BAA103D5FDAC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.CodeGen", "Compiler.CodeGen\Compiler.CodeGen.csproj", "{56A644D0-74BD-4509-907A-D40461033443}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.CodeGen.x86", "Compiler.CodeGen.x86\Compiler.CodeGen.x86.csproj", "{E59E3C62-251F-4C14-8C4E-05492D95A128}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,5 +42,13 @@ Global
 		{0E27A22A-C611-417C-A768-BAA103D5FDAC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0E27A22A-C611-417C-A768-BAA103D5FDAC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0E27A22A-C611-417C-A768-BAA103D5FDAC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56A644D0-74BD-4509-907A-D40461033443}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56A644D0-74BD-4509-907A-D40461033443}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56A644D0-74BD-4509-907A-D40461033443}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56A644D0-74BD-4509-907A-D40461033443}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
