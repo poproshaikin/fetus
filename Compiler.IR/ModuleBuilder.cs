@@ -15,6 +15,13 @@ public class ModuleBuilder
         return dest;
     }
 
+    public AnonStackEntry LoadConstString(TypeInfo type, string value)
+    {
+        var dest = _stack.PushAnon(type);
+        _instructions.Add(new Instruction(OpCode.Mov, dest, new ConstStringOperand(value), null));
+        return dest;
+    }
+
     public AnonStackEntry Add(TypeInfo type, StackEntry op1, StackEntry op2)
     {
         var dest = _stack.PushAnon(type);
@@ -86,6 +93,14 @@ public class ModuleBuilder
     {
         var dest = returnType == VoidType.Instance ? null : _stack.PushAnon(returnType);
         _instructions.Add(new Instruction(OpCode.Call, dest, null, null, Callee: callee, ArgCount: argCount));
+        return dest;
+    }
+
+    public AnonStackEntry Syscall(TypeInfo returnType, List<StackEntry> args)
+    {
+        var dest = _stack.PushAnon(returnType);
+        var operands = args.Select(a => (Operand)new EntryOperand(a)).ToList();
+        _instructions.Add(new Instruction(OpCode.Syscall, dest, null, null, Args: operands));
         return dest;
     }
 

@@ -172,6 +172,7 @@ public class Lowerer
             BoundAssignment assignment => LowerAssignment(assignment),
             BoundBinary binary => LowerBinary(binary),
             BoundCall call => LowerCall(call),
+            BoundSyscall syscall => LowerSyscall(syscall),
             BoundIdentifier identifier => LowerIdentifier(identifier),
             BoundLiteral literal => LowerLiteral(literal),
             _ => throw new ArgumentOutOfRangeException(nameof(expr), expr, null)
@@ -182,8 +183,11 @@ public class Lowerer
 
     private StackEntry LowerLiteral(BoundLiteral literal)
     {
-        if (literal.Type is FloatType or StringType)
+        if (literal.Type is FloatType)
             throw new NotImplementedException($"Lowering '{literal.Type.TypeName}' literals is not implemented yet");
+
+        if (literal.Value is string str)
+            return _builder.LoadConstString(literal.Type, str);
 
         var value = literal.Value switch
         {
@@ -270,5 +274,11 @@ public class Lowerer
             _builder.SetParam(p);
 
         return _builder.Call(call.Callee, call.Type, call.Args.Count)!;
+    }
+
+    private StackEntry LowerSyscall(BoundSyscall syscall)
+    {
+        var args = syscall.Args.Select(LowerExpression).ToList();
+        return _builder.Syscall(syscall.Type, args);
     }
 }

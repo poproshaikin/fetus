@@ -19,6 +19,8 @@ public sealed record BoundAssignment(TypeInfo Type, string Target, BoundExpressi
 
 public sealed record BoundCall(TypeInfo Type, string Callee, List<BoundExpression> Args) : BoundExpression(Type);
 
+public sealed record BoundSyscall(TypeInfo Type, List<BoundExpression> Args) : BoundExpression(Type);
+
 public sealed record BoundVarDecl(TypeInfo Type, string Name, BoundExpression? Init) : BoundStatement;
 
 public sealed record BoundParamDecl(TypeInfo Type, string Name) : BoundStatement;

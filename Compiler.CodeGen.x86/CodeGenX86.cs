@@ -15,10 +15,22 @@ public class CodeGenX86 : CodeGen
         foreach (var function in module.Functions)
             lines.AddRange(EmitFunction(function));
 
+        if (_stringPool.Count > 0)
+        {
+            lines.Add(new AsmDirective(".section .rodata"));
+            foreach (var (text, label) in _stringPool)
+            {
+                lines.Add(new AsmLabel(label));
+                lines.Add(new AsmDirective($".asciz \"{text}\""));
+            }
+        }
+
         return Print(lines);
     }
 
-    public List<AsmLine> EmitFunction(Function function)
+    private readonly Dictionary<string, string> _stringPool = [];
+
+    private List<AsmLine> EmitFunction(Function function)
     {
         var lines = new List<AsmLine>
         {
@@ -42,7 +54,7 @@ public class CodeGenX86 : CodeGen
         return lines;
     }
 
-    public List<AsmLine> EmitInstruction(Instruction instruction)
+    private List<AsmLine> EmitInstruction(Instruction instruction)
     {
         return instruction.OpCode switch
         {
@@ -53,6 +65,7 @@ public class CodeGenX86 : CodeGen
             OpCode.Label => [new AsmLabel(EmitLabel(instruction.Target!))],
             OpCode.Jump or OpCode.JumpIfFalse or OpCode.JumpIfTrue => EmitJump(instruction),
             OpCode.Param or OpCode.Call or OpCode.Ret => EmitCallingConvention(instruction),
+            OpCode.Syscall => EmitSyscall(instruction).ToList(),
             _ => throw new ArgumentOutOfRangeException(nameof(instruction.OpCode))
         };
     }
@@ -67,6 +80,33 @@ public class CodeGenX86 : CodeGen
             new AsmInstr("mov", "$60", "%rax"),
             new AsmInstr("syscall"),
         ];
+    }
+
+    private IEnumerable<AsmLine> EmitSyscall(Instruction syscall)
+    {
+        for (int i = 0; i < syscall.Args!.Count; i++)
+        {
+            yield return i switch
+            {
+                0 => SyscallParam("%rax"),
+                1 => SyscallParam("%rdi"),
+                2 => SyscallParam("%rsi"),
+                3 => SyscallParam("%rdx"),
+                4 => SyscallParam("%r10"),
+                5 => SyscallParam("%r8"),
+                6 => SyscallParam("%r9"),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            continue;
+
+            AsmInstr SyscallParam(string reg)
+            {
+                return new AsmInstr("mov", EmitOperand(syscall.Args![i]), reg);
+            }
+        }
+
+        yield return new AsmInstr("syscall");
+        yield return new AsmInstr("mov", "%rax", EmitStackEntry(syscall.Dest!));
     }
 
     private List<AsmLine> EmitCallingConvention(Instruction instruction)
@@ -205,10 +245,24 @@ public class CodeGenX86 : CodeGen
     {
         ConstOperand c => "$" + c.Value,
         EntryOperand e => EmitStackEntry(e.Entry),
+        ConstStringOperand s => EmitConstString(s.Value),
         _ => throw new ArgumentOutOfRangeException(nameof(operand))
     };
 
+    private string EmitConstString(string value) => "$" + InternString(value);
+
     private string EmitStackEntry(StackEntry entry) => entry.Offset + "(%rbp)";
+
+    private string InternString(string value)
+    {
+        if (_stringPool.TryGetValue(value, out var label)) 
+            return label;
+        
+        label = $"Lstr{_stringPool.Count}";
+        _stringPool[value] = label;
+
+        return label;
+    }
 
     private static string Print(IEnumerable<AsmLine> lines) => string.Join("\n", lines.Select(Print)) + "\n";
 

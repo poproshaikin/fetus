@@ -9,4 +9,5 @@ public sealed record Instruction(
     Operand? Src2,
     Label? Target = null,
     string? Callee = null,
-    int? ArgCount = null);
+    int? ArgCount = null,
+    List<Operand>? Args = null);

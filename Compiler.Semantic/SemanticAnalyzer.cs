@@ -232,10 +232,13 @@ public class SemanticAnalyzer
         return new BoundIdentifier(symbol.Type, identifier.Name);
     }
 
-    private BoundCall BindCall(Call call)
+    private BoundExpression BindCall(Call call)
     {
         if (call.Callee is not Identifier callee)
             throw new NotCallableException(call.Callee.Kind.ToString(), call.Line, call.Column);
+
+        if (callee.Name == "syscall")
+            return BindSyscall(call);
 
         var symbol = _scope.Resolve(callee.Name) ?? throw new UndefinedSymbolException(callee.Name, callee.Line, callee.Column);
         if (symbol.Type is not FunctionType functionType)
@@ -256,6 +259,24 @@ public class SemanticAnalyzer
         }
 
         return new BoundCall(functionType.ReturnType, callee.Name, boundArgs);
+    }
+
+    private BoundSyscall BindSyscall(Call call)
+    {
+        if (call.Args.Count is < 1 or > 7)
+            throw new ArgumentCountMismatchException(7, call.Args.Count, call.Line, call.Column);
+
+        var boundArgs = new List<BoundExpression>();
+        foreach (var arg in call.Args)
+        {
+            var bound = BindExpression(arg);
+            if (bound.Type is not IntType and not StringType)
+                throw new TypeMismatchException("int", bound.Type.TypeName, arg.Line, arg.Column);
+
+            boundArgs.Add(bound);
+        }
+
+        return new BoundSyscall(IntType.Int32, boundArgs);
     }
 
     private BoundLiteral BindLiteral(Literal literal)

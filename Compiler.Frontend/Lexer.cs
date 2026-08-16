@@ -1,3 +1,4 @@
+using System.Text;
 using Compiler.AST;
 
 namespace Compiler.Frontend;
@@ -81,14 +82,36 @@ public sealed class Lexer
 
     private void ScanString()
     {
+        var value = new StringBuilder();
+
         while (Peek() != '"' && !IsAtEnd())
         {
-            if (Peek() == '\n')
+            var c = Advance();
+
+            if (c == '\n')
             {
                 _line++;
                 _column = 1;
             }
-            Advance();
+
+            if (c == '\\' && !IsAtEnd())
+            {
+                var escaped = Advance();
+                value.Append(escaped switch
+                {
+                    'n' => '\n',
+                    't' => '\t',
+                    'r' => '\r',
+                    '"' => '"',
+                    '\\' => '\\',
+                    '0' => '\0',
+                    _ => throw new Exception($"Unknown escape sequence '\\{escaped}' at line {_line}"),
+                });
+            }
+            else
+            {
+                value.Append(c);
+            }
         }
 
         if (IsAtEnd())
@@ -97,7 +120,7 @@ public sealed class Lexer
         }
 
         Advance(); // closing quote
-        AddToken(TokenType.String, _code[(_start + 1)..(_current - 1)]);
+        AddToken(TokenType.String, value.ToString());
     }
 
     private void ScanOperator(char c)
