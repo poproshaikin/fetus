@@ -20,6 +20,7 @@ public class SemanticAnalyzer
 
     private readonly AstModule _astModule;
     private readonly TypeTable _typeTable = new();
+    private readonly ConversionsTable _conversionsTable = new();
     private Scope _scope = new();
     private BlockContext _context = BlockContext.TopLevel;
     private bool _inBlock;
@@ -34,6 +35,10 @@ public class SemanticAnalyzer
             NodeKind.If => BindIf((If)stmt),
             NodeKind.While => BindWhile((While)stmt),
             NodeKind.Return => BindReturn((Return)stmt),
+            NodeKind.Break when _context.InLoop => new BoundBreak(),
+            NodeKind.Continue when _context.InLoop => new BoundContinue(),
+            NodeKind.Break => throw new BreakOutsideLoopException(stmt.Line, stmt.Column),
+            NodeKind.Continue => throw new ContinueOutsideLoopException(stmt.Line, stmt.Column),
             _ => throw new ArgumentOutOfRangeException(),
         };
     }
@@ -229,7 +234,7 @@ public class SemanticAnalyzer
         var targetType = _typeTable.GetOrThrow(cast.TargetType);
         var castee = BindExpression(cast.Value);
 
-        var allowed = (castee.Type, targetType) is (IntType, StringType) or (StringType, IntType);
+        var allowed = _conversionsTable.IsConvertibleTo(castee.Type.TypeName, targetType.TypeName);
         if (!allowed)
             throw new TypeMismatchException(targetType.TypeName, castee.Type.TypeName, cast.Line, cast.Column);
         
@@ -300,8 +305,8 @@ public class SemanticAnalyzer
         foreach (var arg in call.Args)
         {
             var bound = BindExpression(arg);
-            if (bound.Type is not IntType and not StringType)
-                throw new TypeMismatchException("int", bound.Type.TypeName, arg.Line, arg.Column);
+            if (bound.Type is not IntType and not StringType and not PtrType)
+                throw new TypeMismatchException("convertible to ptr", bound.Type.TypeName, arg.Line, arg.Column);
 
             boundArgs.Add(bound);
         }
@@ -385,7 +390,7 @@ public class SemanticAnalyzer
 
     private static void RequireNumeric(TypeInfo type, Binary binary)
     {
-        if (type is not IntType and not FloatType)
+        if (type is not IntType and not FloatType and not PtrType)
             throw new TypeMismatchException("int/float", type.TypeName, binary.Line, binary.Column);
     }
 

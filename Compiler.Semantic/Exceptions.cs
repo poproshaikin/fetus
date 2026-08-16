@@ -88,6 +88,22 @@ public sealed class InvalidConditionException : SemanticException
     }
 }
 
+public sealed class BreakOutsideLoopException : SemanticException
+{
+    public BreakOutsideLoopException(int line, int column)
+        : base("'break' can only be used inside a loop", line, column)
+    {
+    }
+}
+
+public sealed class ContinueOutsideLoopException : SemanticException
+{
+    public ContinueOutsideLoopException(int line, int column)
+        : base("'continue' can only be used inside a loop", line, column)
+    {
+    }
+}
+
 public sealed class UndefinedTypeException : SemanticException
 {
     public string TypeName { get; }

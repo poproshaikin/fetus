@@ -11,6 +11,7 @@ public class TypeTable
         _table["string"] = StringType.Instance;
         _table["bool"] = BoolType.Instance;
         _table["void"] = VoidType.Instance;
+        _table["ptr"] = PtrType.Instance;
     }
     
     public void Add(string name, TypeInfo typeInfo)

@@ -31,20 +31,34 @@ public class Lowerer
         return _builder.Build();
     }
 
+    private sealed record BoundBlockContext(Label Start, Label End);
+
     private readonly BoundProgram _program;
     private readonly ModuleBuilder _builder = new();
     private Scope _scope = new();
 
-    private void LowerStatement(BoundStatement stmt)
+    private void LowerStatement(BoundStatement stmt, BoundBlockContext? context = null)
     {
         switch (stmt)
         {
             case BoundVarDecl varDecl: LowerVarDecl(varDecl); break;
             case BoundExprStatement exprStmt: LowerExpression(exprStmt.Expression); break;
-            case BoundIf @if: LowerIf(@if); break;
+            case BoundIf @if: LowerIf(@if, endLabel: null, context); break;
             case BoundWhile @while: LowerWhile(@while); break;
             case BoundReturn @return: LowerReturn(@return); break;
+            case BoundBreak when context != null: LowerBreak(context); break;
+            case BoundContinue when context != null: LowerContinue(context); break;
         }
+    }
+
+    private void LowerContinue(BoundBlockContext ctx)
+    {
+        _builder.Jump(ctx.Start);
+    }
+
+    private void LowerBreak(BoundBlockContext ctx)
+    {
+        _builder.Jump(ctx.End);
     }
 
     private void LowerReturn(BoundReturn @return)
@@ -71,7 +85,7 @@ public class Lowerer
         _builder.MarkLabel(startCycle);
         var condition = LowerExpression(@while.Condition);
         _builder.JumpIfFalse(condition, endCycle);
-        LowerBlock(@while.Body);
+        LowerBlock(@while.Body, new BoundBlockContext(startCycle, endCycle));
         _builder.Jump(startCycle);
         _builder.MarkLabel(endCycle);
     }
@@ -98,7 +112,7 @@ public class Lowerer
     // end:
     // 
 
-    private void LowerIf(BoundIf @if, Label? endLabel = null)
+    private void LowerIf(BoundIf @if, Label? endLabel = null, BoundBlockContext? blockCtx = null)
     {
         var outerIf = endLabel == null;
         var end = endLabel ?? _builder.NewLabel();
@@ -106,18 +120,18 @@ public class Lowerer
         var condition = LowerExpression(@if.Condition);
 
         _builder.JumpIfFalse(condition, next);
-        LowerBlock(@if.Then);
+        LowerBlock(@if.Then, blockCtx);
         _builder.Jump(end);
 
         _builder.MarkLabel(next);
 
         if (@if.Else is BoundIf elseIf)
         {
-            LowerIf(elseIf, end);
+            LowerIf(elseIf, end, blockCtx);
         }
         else if (@if.Else is BoundBlock elseBlock)
         {
-            LowerBlock(elseBlock);
+            LowerBlock(elseBlock, blockCtx);
         }
 
         if (outerIf)
@@ -142,13 +156,13 @@ public class Lowerer
         _scope = savedScope;
     }
 
-    private void LowerBlock(BoundBlock block)
+    private void LowerBlock(BoundBlock block, BoundBlockContext? context = null)
     {
         var savedScope = _scope;
         _scope = savedScope.CreateChild();
         
         foreach (var stmt in block.Body)
-            LowerStatement(stmt);
+            LowerStatement(stmt, context);
         
         _scope = savedScope;
     }

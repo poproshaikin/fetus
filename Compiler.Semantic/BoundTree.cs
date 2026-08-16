@@ -44,3 +44,7 @@ public sealed record BoundExprStatement(BoundExpression Expression) : BoundState
 public sealed record BoundProgram(List<BoundStatement> Body) : BoundNode;
 
 public sealed record BoundCast(TypeInfo Type, BoundExpression Value) : BoundExpression(Type);
+
+public sealed record BoundBreak : BoundStatement;
+
+public sealed record BoundContinue : BoundStatement;

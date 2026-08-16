@@ -77,18 +77,40 @@ public sealed class Parser
         return new AstModule { Body = body, Line = line, Column = column };
     }
 
-    private Statement ParseStatement()
+    private readonly record struct BlockContext(bool InLoop);
+
+    private Statement ParseStatement(BlockContext context = default)
     {
         return Current()?.Type switch
         {
             TokenType.LBrace => ParseBlock(),
-            TokenType.If => ParseIf(),
+            TokenType.If => ParseIf(context),
             TokenType.While => ParseWhile(),
             TokenType.Return => ParseReturn(),
             TokenType.Identifier when Peek()?.Type == TokenType.Identifier && Peek(2)?.Type == TokenType.LParen => ParseFuncDecl(),
             TokenType.Identifier when Peek()?.Type == TokenType.Identifier => ParseVarDecl(),
+            TokenType.Break when context.InLoop => ParseBreak(),
+            TokenType.Continue when context.InLoop => ParseContinue(),
             _ => ParseExprStatement(),
         };
+    }
+
+    private Break ParseBreak()
+    {
+        var current = Current()!;
+        AdvanceOrThrow();
+        MatchOrThrow(TokenType.Semicolon);
+        Advance();
+        return new Break { Line = current.Line, Column = current.Column };
+    }
+
+    private Continue ParseContinue()
+    {
+        var current = Current()!;
+        AdvanceOrThrow();
+        MatchOrThrow(TokenType.Semicolon);
+        Advance();
+        return new Continue { Line = current.Line, Column = current.Column };
     }
 
     private VarDecl ParseVarDecl()
@@ -106,7 +128,7 @@ public sealed class Parser
         return new VarDecl { TypeName = typeName, Identifier = name, Init = init, Line = line, Column = column };
     }
 
-    private If ParseIf()
+    private If ParseIf(BlockContext context = default)
     {
         var (line, column) = PositionOf(Current());
         MatchOrThrow(TokenType.If);
@@ -118,13 +140,13 @@ public sealed class Parser
         MatchOrThrow(TokenType.RParen);
         AdvanceOrThrow();
 
-        var then = ParseBlock();
+        var then = ParseBlock(context);
 
         Node? elseBranch = null;
         if (Match(TokenType.Else))
         {
             AdvanceOrThrow();
-            elseBranch = Match(TokenType.If) ? ParseIf() : ParseBlock();
+            elseBranch = Match(TokenType.If) ? ParseIf(context) : ParseBlock(context);
         }
 
         return new If { Condition = condition, Then = then, Else = elseBranch, Line = line, Column = column };
@@ -142,7 +164,7 @@ public sealed class Parser
         MatchOrThrow(TokenType.RParen);
         AdvanceOrThrow();
 
-        var body = ParseBlock();
+        var body = ParseBlock(new BlockContext(true));
 
         return new While { Condition = condition, Body = body, Line = line, Column = column };
     }
@@ -241,7 +263,7 @@ public sealed class Parser
         return parameters;
     }
 
-    private Block ParseBlock()
+    private Block ParseBlock(BlockContext context = default)
     {
         var (line, column) = PositionOf(Current());
         MatchOrThrow(TokenType.LBrace);
@@ -255,7 +277,7 @@ public sealed class Parser
                 Advance();
                 continue;
             }
-            body.Add(ParseStatement());
+            body.Add(ParseStatement(context));
         }
 
         Advance();
@@ -312,9 +334,19 @@ public sealed class Parser
             case TokenType.False: return ParseBooleanLiteral(false);
             case TokenType.Null: return ParseNullLiteral();
             case TokenType.Identifier: return ParseIdentifierOrCall();
+            case TokenType.LParen: return ParseGrouping();
             default:
                 throw ThrowAt(Current(), $"Unexpected token '{Current()?.Type}' in expression");
         }
+    }
+
+    private Expression ParseGrouping()
+    {
+        AdvanceOrThrow();
+        var expr = ParseExpression();
+        MatchOrThrow(TokenType.RParen);
+        Advance();
+        return expr;
     }
 
     private Expression ParseIdentifierOrCall()

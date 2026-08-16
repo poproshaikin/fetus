@@ -8,6 +8,7 @@ public enum TypeKind
     String,
     Void,
     Function,
+    Ptr
 }
 
 public abstract record TypeInfo
@@ -85,6 +86,21 @@ public sealed record VoidType : TypeInfo
     public override int Size => throw new InvalidOperationException("void has no size");
 
     private VoidType()
+    {
+    }
+}
+
+public sealed record PtrType : TypeInfo
+{
+    public static readonly PtrType Instance = new();
+    
+    public override TypeKind Kind => TypeKind.Ptr;
+
+    public override string TypeName => "ptr";
+    
+    public override int Size => 8;
+    
+    private PtrType()
     {
     }
 }

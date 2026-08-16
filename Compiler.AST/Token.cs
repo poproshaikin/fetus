@@ -33,6 +33,8 @@ public enum TokenType
     And,
     Or,
     Not,
+    Break,
+    Continue,
     EOF,
 }
 
@@ -48,6 +50,8 @@ public static class TokensMap
         ["true"] = TokenType.True,
         ["false"] = TokenType.False,
         ["null"] = TokenType.Null,
+        ["break"] = TokenType.Break,
+        ["continue"] = TokenType.Continue,
         ["("] = TokenType.LParen,
         [")"] = TokenType.RParen,
         ["{"] = TokenType.LBrace,

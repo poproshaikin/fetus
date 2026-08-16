@@ -18,7 +18,9 @@ public enum NodeKind
     Literal,
     ParamDecl,
     Return,
-    Cast
+    Cast,
+    Break,
+    Continue
 }
 
 public abstract record Node
@@ -152,4 +154,14 @@ public sealed record Cast : Expression
     public override NodeKind Kind => NodeKind.Cast;
     public required Expression Value { get; set; }
     public required Identifier TargetType { get; set; }
+}
+
+public sealed record Break : Statement
+{
+    public override NodeKind Kind => NodeKind.Break;
+}
+
+public sealed record Continue : Statement
+{
+    public override NodeKind Kind => NodeKind.Continue;
 }
