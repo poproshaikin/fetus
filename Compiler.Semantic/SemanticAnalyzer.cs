@@ -4,21 +4,21 @@ namespace Compiler.Semantic;
 
 public class SemanticAnalyzer
 {
-    public SemanticAnalyzer(Program program)
+    public SemanticAnalyzer(AstModule astModule)
     {
-        _program = program;
+        _astModule = astModule;
     }
 
     public BoundProgram Analyze()
     {
         var body = new List<BoundStatement>();
-        foreach (var statement in _program.Body)
+        foreach (var statement in _astModule.Body)
             body.Add(BindStatement(statement));
 
         return new BoundProgram(body);
     }
 
-    private readonly Program _program;
+    private readonly AstModule _astModule;
     private readonly TypeTable _typeTable = new();
     private Scope _scope = new();
     private BlockContext _context = BlockContext.TopLevel;
@@ -219,10 +219,23 @@ public class SemanticAnalyzer
             NodeKind.Binary => BindBinary((Binary)expression),
             NodeKind.Call => BindCall((Call)expression),
             NodeKind.Identifier => BindIdentifier((Identifier)expression),
+            NodeKind.Cast => BindCast((Cast)expression),
             _ => throw new UnsupportedExpressionException(expression.Line, expression.Column),
         };
     }
 
+    private BoundCast BindCast(Cast cast)
+    {
+        var targetType = _typeTable.GetOrThrow(cast.TargetType);
+        var castee = BindExpression(cast.Value);
+
+        var allowed = (castee.Type, targetType) is (IntType, StringType) or (StringType, IntType);
+        if (!allowed)
+            throw new TypeMismatchException(targetType.TypeName, castee.Type.TypeName, cast.Line, cast.Column);
+        
+        return new BoundCast(targetType, castee);   
+    }
+        
     private BoundIdentifier BindIdentifier(Identifier identifier)
     {
         var symbol =
@@ -239,6 +252,9 @@ public class SemanticAnalyzer
 
         if (callee.Name == "syscall")
             return BindSyscall(call);
+
+        if (callee.Name == "peek")
+            return BindPeek(call);
 
         var symbol = _scope.Resolve(callee.Name) ?? throw new UndefinedSymbolException(callee.Name, callee.Line, callee.Column);
         if (symbol.Type is not FunctionType functionType)
@@ -259,6 +275,20 @@ public class SemanticAnalyzer
         }
 
         return new BoundCall(functionType.ReturnType, callee.Name, boundArgs);
+    }
+
+    private BoundPeek BindPeek(Call call)
+    {
+        var address = BindExpression(call.Args[0]);
+        var offset = BindExpression(call.Args[1]);
+        
+        if (address.Type is not IntType and not StringType)
+            throw new TypeMismatchException("int", address.Type.TypeName, call.Args[0].Line, call.Args[0].Column);        
+        
+        if (offset.Type is not IntType)
+            throw new TypeMismatchException("int", offset.Type.TypeName, call.Args[1].Line, call.Args[1].Column);
+        
+        return new BoundPeek(address, offset);
     }
 
     private BoundSyscall BindSyscall(Call call)

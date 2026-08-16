@@ -58,7 +58,7 @@ public sealed class Parser
         _tokens = tokens;
     }
 
-    public Program Parse()
+    public AstModule Parse()
     {
         _i = 0;
         var (line, column) = PositionOf(Current());
@@ -74,18 +74,18 @@ public sealed class Parser
             body.Add(ParseStatement());
         }
 
-        return new Program { Body = body, Line = line, Column = column };
+        return new AstModule { Body = body, Line = line, Column = column };
     }
 
     private Statement ParseStatement()
     {
         return Current()?.Type switch
         {
-            TokenType.Func => ParseFuncDecl(),
             TokenType.LBrace => ParseBlock(),
             TokenType.If => ParseIf(),
             TokenType.While => ParseWhile(),
             TokenType.Return => ParseReturn(),
+            TokenType.Identifier when Peek()?.Type == TokenType.Identifier && Peek(2)?.Type == TokenType.LParen => ParseFuncDecl(),
             TokenType.Identifier when Peek()?.Type == TokenType.Identifier => ParseVarDecl(),
             _ => ParseExprStatement(),
         };
@@ -191,8 +191,6 @@ public sealed class Parser
     private FuncDecl ParseFuncDecl()
     {
         var (line, column) = PositionOf(Current());
-        MatchOrThrow(TokenType.Func);
-        AdvanceOrThrow();
 
         var returnType = ParseIdentifier();
         var name = ParseIdentifier();
@@ -272,7 +270,7 @@ public sealed class Parser
 
     private Expression ParseBinary(int minPrecedence)
     {
-        var left = ParsePrimary();
+        var left = ParseCast();
 
         while (true)
         {
@@ -288,6 +286,20 @@ public sealed class Parser
         }
 
         return left;
+    }
+
+    private Expression ParseCast()
+    {
+        var expr = ParsePrimary();
+
+        while (Match(TokenType.As))
+        {
+            AdvanceOrThrow();
+            var targetType = ParseIdentifier();
+            expr = new Cast { Value = expr, TargetType = targetType, Line = expr.Line, Column = expr.Column };
+        }
+
+        return expr;
     }
 
     private Expression ParsePrimary()

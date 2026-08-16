@@ -2,7 +2,6 @@ namespace Compiler.AST;
 
 public enum TokenType
 {
-    Func,
     If,
     Else,
     While,
@@ -41,7 +40,6 @@ public static class TokensMap
 {
     public static readonly Dictionary<string, TokenType> Map = new()
     {
-        ["func"] = TokenType.Func,
         ["if"] = TokenType.If,
         ["else"] = TokenType.Else,
         ["while"] = TokenType.While,

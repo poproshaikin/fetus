@@ -173,10 +173,20 @@ public class Lowerer
             BoundBinary binary => LowerBinary(binary),
             BoundCall call => LowerCall(call),
             BoundSyscall syscall => LowerSyscall(syscall),
+            BoundPeek peek => LowerPeek(peek),
             BoundIdentifier identifier => LowerIdentifier(identifier),
             BoundLiteral literal => LowerLiteral(literal),
+            BoundCast cast => LowerCast(cast),
             _ => throw new ArgumentOutOfRangeException(nameof(expr), expr, null)
         };
+    }
+
+    private StackEntry LowerCast(BoundCast cast)
+    {
+        var value = LowerExpression(cast.Value);
+        var dest = _builder.PushAnon(cast.Type);
+        _builder.Mov(dest, value);
+        return dest;
     }
 
     private StackEntry LowerIdentifier(BoundIdentifier identifier) => _scope.Resolve(identifier.Name)!;
@@ -281,4 +291,10 @@ public class Lowerer
         var args = syscall.Args.Select(LowerExpression).ToList();
         return _builder.Syscall(syscall.Type, args);
     }
+    
+    private StackEntry LowerPeek(BoundPeek peek)
+    {
+        return _builder.Peek(LowerExpression(peek.Address), LowerExpression(peek.Offset));
+    }
+
 }

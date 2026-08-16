@@ -6,5 +6,6 @@ public enum OpCode
     Add, Sub, Mul, Div,
     Label, Jump, JumpIfFalse, JumpIfTrue,
     CmpEq, CmpNotEq, CmpLt, CmpGt, CmpLtEq, CmpGtEq,
-    Call, Syscall, Param, Ret
+    Call, Syscall, Param, Ret,
+    Peek
 }

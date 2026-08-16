@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.CodeGen", "Compile
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.CodeGen.x86", "Compiler.CodeGen.x86\Compiler.CodeGen.x86.csproj", "{E59E3C62-251F-4C14-8C4E-05492D95A128}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Compiler.CLI", "Compiler.CLI\Compiler.CLI.csproj", "{D177AC2C-E241-4F4D-995F-B21CE949BE52}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,5 +52,9 @@ Global
 		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E59E3C62-251F-4C14-8C4E-05492D95A128}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D177AC2C-E241-4F4D-995F-B21CE949BE52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D177AC2C-E241-4F4D-995F-B21CE949BE52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D177AC2C-E241-4F4D-995F-B21CE949BE52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D177AC2C-E241-4F4D-995F-B21CE949BE52}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

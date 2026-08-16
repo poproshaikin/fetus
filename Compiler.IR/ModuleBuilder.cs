@@ -104,6 +104,13 @@ public class ModuleBuilder
         return dest;
     }
 
+    public AnonStackEntry Peek(StackEntry address, StackEntry offset)
+    {
+        var dest = _stack.PushAnon(IntType.Int32);
+        _instructions.Add(new Instruction(OpCode.Peek, dest, new EntryOperand(address), new EntryOperand(offset)));
+        return dest;
+    }
+
     public void Return(StackEntry? value)
     {
         _instructions.Add(new Instruction(OpCode.Ret, null, value != null ? new EntryOperand(value) : null, null));

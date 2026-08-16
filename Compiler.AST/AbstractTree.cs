@@ -4,7 +4,7 @@ namespace Compiler.AST;
 
 public enum NodeKind
 {
-    Program,
+    Module,
     VarDecl,
     FuncDecl,
     Block,
@@ -17,7 +17,8 @@ public enum NodeKind
     Identifier,
     Literal,
     ParamDecl,
-    Return
+    Return,
+    Cast
 }
 
 public abstract record Node
@@ -47,9 +48,9 @@ public enum BinaryOperator
     Or,
 }
 
-public sealed record Program : Node
+public sealed record AstModule : Node
 {
-    public override NodeKind Kind => NodeKind.Program;
+    public override NodeKind Kind => NodeKind.Module;
     public required List<Statement> Body { get; init; }
 }
 
@@ -144,4 +145,11 @@ public sealed record Literal : Expression
 {
     public override NodeKind Kind => NodeKind.Literal;
     public required object? Value { get; init; }
+}
+
+public sealed record Cast : Expression
+{
+    public override NodeKind Kind => NodeKind.Cast;
+    public required Expression Value { get; set; }
+    public required Identifier TargetType { get; set; }
 }

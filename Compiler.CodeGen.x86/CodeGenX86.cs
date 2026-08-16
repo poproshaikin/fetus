@@ -65,7 +65,8 @@ public class CodeGenX86 : CodeGen
             OpCode.Label => [new AsmLabel(EmitLabel(instruction.Target!))],
             OpCode.Jump or OpCode.JumpIfFalse or OpCode.JumpIfTrue => EmitJump(instruction),
             OpCode.Param or OpCode.Call or OpCode.Ret => EmitCallingConvention(instruction),
-            OpCode.Syscall => EmitSyscall(instruction).ToList(),
+            OpCode.Syscall => EmitSyscall(instruction),
+            OpCode.Peek => EmitPeek(instruction),
             _ => throw new ArgumentOutOfRangeException(nameof(instruction.OpCode))
         };
     }
@@ -81,32 +82,41 @@ public class CodeGenX86 : CodeGen
             new AsmInstr("syscall"),
         ];
     }
-
-    private IEnumerable<AsmLine> EmitSyscall(Instruction syscall)
+    
+    private List<AsmLine> EmitPeek(Instruction instruction)
     {
-        for (int i = 0; i < syscall.Args!.Count; i++)
-        {
-            yield return i switch
-            {
-                0 => SyscallParam("%rax"),
-                1 => SyscallParam("%rdi"),
-                2 => SyscallParam("%rsi"),
-                3 => SyscallParam("%rdx"),
-                4 => SyscallParam("%r10"),
-                5 => SyscallParam("%r8"),
-                6 => SyscallParam("%r9"),
-                _ => throw new ArgumentOutOfRangeException()
-            };
-            continue;
+        // address - src1
+        // offset - src2
+        //
+        // mov address, %rax
+        // mov offset, %rbx
+        // add %rbx, %rax
+        // movzbl (%rax), %ebx
+        // mov %rbx, dest
 
-            AsmInstr SyscallParam(string reg)
-            {
-                return new AsmInstr("mov", EmitOperand(syscall.Args![i]), reg);
-            }
-        }
+        return
+        [
+            new AsmInstr("mov", EmitOperand(instruction.Src1!), "%rax"),
+            new AsmInstr("mov", EmitOperand(instruction.Src2!), "%rbx"),
+            new AsmInstr("add", "%rbx", "%rax"),
+            new AsmInstr("movzbl", "(%rax)", "%ebx"),
+            new AsmInstr("mov", "%rbx", EmitStackEntry(instruction.Dest!)),
+        ];
+    }
 
-        yield return new AsmInstr("syscall");
-        yield return new AsmInstr("mov", "%rax", EmitStackEntry(syscall.Dest!));
+    private static readonly string[] SyscallRegisters = ["%rax", "%rdi", "%rsi", "%rdx", "%r10", "%r8", "%r9"];
+
+    private List<AsmLine> EmitSyscall(Instruction syscall)
+    {
+        var lines = new List<AsmLine>();
+
+        for (var i = 0; i < syscall.Args!.Count; i++)
+            lines.Add(new AsmInstr("mov", EmitOperand(syscall.Args[i]), SyscallRegisters[i]));
+
+        lines.Add(new AsmInstr("syscall"));
+        lines.Add(new AsmInstr("mov", "%rax", EmitStackEntry(syscall.Dest!)));
+
+        return lines;
     }
 
     private List<AsmLine> EmitCallingConvention(Instruction instruction)

@@ -21,6 +21,8 @@ public sealed record BoundCall(TypeInfo Type, string Callee, List<BoundExpressio
 
 public sealed record BoundSyscall(TypeInfo Type, List<BoundExpression> Args) : BoundExpression(Type);
 
+public sealed record BoundPeek(BoundExpression Address, BoundExpression Offset) : BoundExpression(IntType.Int32);
+
 public sealed record BoundVarDecl(TypeInfo Type, string Name, BoundExpression? Init) : BoundStatement;
 
 public sealed record BoundParamDecl(TypeInfo Type, string Name) : BoundStatement;
@@ -40,3 +42,5 @@ public sealed record BoundWhile(BoundExpression Condition, BoundBlock Body) : Bo
 public sealed record BoundExprStatement(BoundExpression Expression) : BoundStatement;
 
 public sealed record BoundProgram(List<BoundStatement> Body) : BoundNode;
+
+public sealed record BoundCast(TypeInfo Type, BoundExpression Value) : BoundExpression(Type);

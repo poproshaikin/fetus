@@ -36,6 +36,11 @@ public sealed class Lexer
         if (IsWhitespace(c))
         {
         }
+        else if (c == '/' && Peek() == '/')
+        {
+            while (Peek() != '\n' && !IsAtEnd())
+                Advance();
+        }
         else if (c == '\n')
         {
             _line++;

@@ -18,15 +18,13 @@ public abstract record TypeInfo
     public abstract int Size { get; }
 }
 
-// Bits is 32 | 64
 public sealed record IntType : TypeInfo
 {
     public static readonly IntType Int32 = new(32);
-    public static readonly IntType Int64 = new(64);
 
     public override TypeKind Kind => TypeKind.Int;
     public int Bits { get; }
-    public override string TypeName => Bits == 64 ? "int64" : "int";
+    public override string TypeName => "int";
     public override int Size => Bits / 8;
 
     private IntType(int bits)
