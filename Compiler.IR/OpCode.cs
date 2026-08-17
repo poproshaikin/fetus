@@ -7,5 +7,5 @@ public enum OpCode
     Label, Jump, JumpIfFalse, JumpIfTrue,
     CmpEq, CmpNotEq, CmpLt, CmpGt, CmpLtEq, CmpGtEq,
     Call, Syscall, Param, Ret,
-    Peek
+    Peek, Poke
 }

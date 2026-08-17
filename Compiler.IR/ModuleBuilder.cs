@@ -111,6 +111,12 @@ public class ModuleBuilder
         return dest;
     }
 
+    public void Poke(StackEntry address, StackEntry offset, StackEntry value)
+    {
+        var args = new List<Operand> { new EntryOperand(address), new EntryOperand(offset), new EntryOperand(value) };
+        _instructions.Add(new Instruction(OpCode.Poke, null, null, null, Args: args));
+    }
+
     public void Return(StackEntry? value)
     {
         _instructions.Add(new Instruction(OpCode.Ret, null, value != null ? new EntryOperand(value) : null, null));

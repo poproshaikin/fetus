@@ -23,6 +23,8 @@ public sealed record BoundSyscall(TypeInfo Type, List<BoundExpression> Args) : B
 
 public sealed record BoundPeek(BoundExpression Address, BoundExpression Offset) : BoundExpression(IntType.Int32);
 
+public sealed record BoundPoke(BoundExpression Address, BoundExpression Offset, BoundExpression Value) : BoundExpression(VoidType.Instance);
+
 public sealed record BoundVarDecl(TypeInfo Type, string Name, BoundExpression? Init) : BoundStatement;
 
 public sealed record BoundParamDecl(TypeInfo Type, string Name) : BoundStatement;

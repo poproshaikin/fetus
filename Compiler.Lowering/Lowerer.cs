@@ -196,6 +196,7 @@ public class Lowerer
             BoundCall call => LowerCall(call),
             BoundSyscall syscall => LowerSyscall(syscall),
             BoundPeek peek => LowerPeek(peek),
+            BoundPoke poke => LowerPoke(poke),
             BoundIdentifier identifier => LowerIdentifier(identifier),
             BoundLiteral literal => LowerLiteral(literal),
             BoundCast cast => LowerCast(cast),
@@ -340,6 +341,15 @@ public class Lowerer
     private AnonStackEntry LowerPeek(BoundPeek peek)
     {
         return _builder.Peek(LowerExpression(peek.Address), LowerExpression(peek.Offset));
+    }
+
+    private StackEntry LowerPoke(BoundPoke poke)
+    {
+        var address = LowerExpression(poke.Address);
+        var offset = LowerExpression(poke.Offset);
+        var value = LowerExpression(poke.Value);
+        _builder.Poke(address, offset, value);
+        return value;
     }
 
 }

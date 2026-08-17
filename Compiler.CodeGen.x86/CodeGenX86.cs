@@ -67,6 +67,7 @@ public class CodeGenX86 : CodeGen
             OpCode.Param or OpCode.Call or OpCode.Ret => EmitCallingConvention(instruction),
             OpCode.Syscall => EmitSyscall(instruction),
             OpCode.Peek => EmitPeek(instruction),
+            OpCode.Poke => EmitPoke(instruction),
             _ => throw new ArgumentOutOfRangeException(nameof(instruction.OpCode))
         };
     }
@@ -101,6 +102,27 @@ public class CodeGenX86 : CodeGen
             new AsmInstr("add", "%rbx", "%rax"),
             new AsmInstr("movzbl", "(%rax)", "%ebx"),
             new AsmInstr("mov", "%rbx", EmitStackEntry(instruction.Dest!)),
+        ];
+    }
+
+    private List<AsmLine> EmitPoke(Instruction instruction)
+    {
+        // args: 0=address, 1=offset, 2=value
+        //
+        // mov address, %rax
+        // mov offset, %rbx
+        // add %rbx, %rax
+        // mov value, %rbx
+        // movb %bl, (%rax)
+
+        var args = instruction.Args!;
+        return
+        [
+            new AsmInstr("mov", EmitOperand(args[0]), "%rax"),
+            new AsmInstr("mov", EmitOperand(args[1]), "%rbx"),
+            new AsmInstr("add", "%rbx", "%rax"),
+            new AsmInstr("mov", EmitOperand(args[2]), "%rbx"),
+            new AsmInstr("movb", "%bl", "(%rax)"),
         ];
     }
 

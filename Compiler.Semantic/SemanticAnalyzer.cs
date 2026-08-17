@@ -331,6 +331,9 @@ public class SemanticAnalyzer
         if (callee.Name == "peek")
             return BindPeek(call);
 
+        if (callee.Name == "poke")
+            return BindPoke(call);
+
         var symbol = _scope.Resolve(callee.Name) ?? throw new UndefinedSymbolException(callee.Name, callee.Line, callee.Column);
         if (symbol.Type is not FunctionType functionType)
             throw new NotCallableException(symbol.Name, symbol.Line, symbol.Column);
@@ -357,13 +360,34 @@ public class SemanticAnalyzer
         var address = BindExpression(call.Args[0]);
         var offset = BindExpression(call.Args[1]);
         
-        if (address.Type is not IntType and not StringType)
-            throw new TypeMismatchException("int", address.Type.TypeName, call.Args[0].Line, call.Args[0].Column);        
-        
+        if (address.Type is not IntType and not StringType and not PtrType)
+            throw new TypeMismatchException("convertible to ptr", address.Type.TypeName, call.Args[0].Line, call.Args[0].Column);
+
         if (offset.Type is not IntType)
             throw new TypeMismatchException("int", offset.Type.TypeName, call.Args[1].Line, call.Args[1].Column);
         
         return new BoundPeek(address, offset);
+    }
+
+    private BoundPoke BindPoke(Call call)
+    {
+        if (call.Args.Count != 3)
+            throw new ArgumentCountMismatchException(3, call.Args.Count, call.Line, call.Column);
+
+        var address = BindExpression(call.Args[0]);
+        var offset = BindExpression(call.Args[1]);
+        var value = BindExpression(call.Args[2]);
+
+        if (address.Type is not IntType and not StringType and not PtrType)
+            throw new TypeMismatchException("convertible to ptr", address.Type.TypeName, call.Args[0].Line, call.Args[0].Column);
+
+        if (offset.Type is not IntType)
+            throw new TypeMismatchException("int", offset.Type.TypeName, call.Args[1].Line, call.Args[1].Column);
+
+        if (value.Type is not IntType)
+            throw new TypeMismatchException("int", value.Type.TypeName, call.Args[2].Line, call.Args[2].Column);
+
+        return new BoundPoke(address, offset, value);
     }
 
     private BoundSyscall BindSyscall(Call call)

@@ -73,4 +73,9 @@ public class Cli
 
         return result;
     }
+
+    private static string StdLib() =>
+        """
+            
+        """;
 }
