@@ -20,7 +20,9 @@ public enum NodeKind
     Return,
     Cast,
     Break,
-    Continue
+    Continue,
+    Struct,
+    MemberAccess
 }
 
 public abstract record Node
@@ -117,7 +119,7 @@ public sealed record ExprStatement : Statement
 public sealed record Assignment : Expression
 {
     public override NodeKind Kind => NodeKind.Assignment;
-    public required Identifier Target { get; init; }
+    public required Expression Target { get; init; }
     public required Expression Value { get; init; }
 }
 
@@ -164,4 +166,14 @@ public sealed record Break : Statement
 public sealed record Continue : Statement
 {
     public override NodeKind Kind => NodeKind.Continue;
+}
+
+public sealed record Struct(Identifier Identifier, List<VarDecl> Fields, List<FuncDecl> Methods) : Statement
+{
+    public override NodeKind Kind => NodeKind.Struct;
+}
+
+public sealed record MemberAccess(Expression Target, Identifier Member) : Expression
+{
+    public override NodeKind Kind => NodeKind.MemberAccess;
 }

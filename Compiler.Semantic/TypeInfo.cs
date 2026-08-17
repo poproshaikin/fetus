@@ -8,7 +8,8 @@ public enum TypeKind
     String,
     Void,
     Function,
-    Ptr
+    Ptr,
+    Struct
 }
 
 public abstract record TypeInfo
@@ -129,14 +130,26 @@ public sealed record FunctionType : TypeInfo
     }
 }
 
-public static class BuiltinTypes
+public sealed record StructType(string TypeName, int Size, List<StructMember> Members) : TypeInfo
 {
-    public static readonly Dictionary<string, TypeInfo> Map = new()
+    public override TypeKind Kind => TypeKind.Struct;
+
+    public override string TypeName { get; } = TypeName;
+
+    public override int Size { get; } = Size;
+
+    public bool Equals(StructType? other) =>
+        other is not null
+        && TypeName == other.TypeName
+        && Members.SequenceEqual(other.Members);
+
+    public override int GetHashCode()
     {
-        ["int"] = IntType.Int32,
-        ["float"] = FloatType.Float32,
-        ["bool"] = BoolType.Instance,
-        ["string"] = StringType.Instance,
-        ["void"] = VoidType.Instance,
-    };
+        var hash = new HashCode();
+        hash.Add(TypeName);
+        foreach (var field in Members) hash.Add(field);
+        return hash.ToHashCode();
+    }
 }
+
+public record StructMember(string Name, TypeInfo Type);

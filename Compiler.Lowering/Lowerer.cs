@@ -17,8 +17,10 @@ public class Lowerer
 
         foreach (var stmt in _program.Body)
         {
-            if (stmt is BoundFuncDecl funcDecl) 
+            if (stmt is BoundFuncDecl funcDecl)
                 LowerFuncDecl(funcDecl);
+            else if (stmt is BoundStruct @struct)
+                LowerStruct(@struct);
             else
                 topLevel.Add(stmt);
         }
@@ -49,6 +51,12 @@ public class Lowerer
             case BoundBreak when context != null: LowerBreak(context); break;
             case BoundContinue when context != null: LowerContinue(context); break;
         }
+    }
+
+    private void LowerStruct(BoundStruct @struct)
+    {
+        foreach (var method in @struct.Methods)
+            LowerFuncDecl(method);
     }
 
     private void LowerContinue(BoundBlockContext ctx)
@@ -191,11 +199,34 @@ public class Lowerer
             BoundIdentifier identifier => LowerIdentifier(identifier),
             BoundLiteral literal => LowerLiteral(literal),
             BoundCast cast => LowerCast(cast),
+            BoundMemberAccess member => LowerMemberAccess(member),
             _ => throw new ArgumentOutOfRangeException(nameof(expr), expr, null)
         };
     }
+    
+    // obj.foo()
+    
+    // mov obj, -N(%rsp)
+    // call Obj_Foo
+    //
+    //
+    
 
-    private StackEntry LowerCast(BoundCast cast)
+    private AnonStackEntry LowerMemberAccess(BoundMemberAccess member)
+    {
+        var target = LowerExpression(member.Target);
+        
+        var structType = (StructType)member.Target.Type;
+        var structMember = structType.Members.First(f => f.Name == member.Member);
+
+        var fieldOffset = structType.Members
+            .TakeWhile(m => m.Name != member.Member)
+            .Sum(m => m.Type.Size);
+
+        return new AnonStackEntry(structMember.Type, target.Offset + fieldOffset, structMember.Type.Size);
+    }
+
+    private AnonStackEntry LowerCast(BoundCast cast)
     {
         var value = LowerExpression(cast.Value);
         var dest = _builder.PushAnon(cast.Type);
@@ -203,9 +234,9 @@ public class Lowerer
         return dest;
     }
 
-    private StackEntry LowerIdentifier(BoundIdentifier identifier) => _scope.Resolve(identifier.Name)!;
+    private NamedStackEntry LowerIdentifier(BoundIdentifier identifier) => _scope.Resolve(identifier.Name)!;
 
-    private StackEntry LowerLiteral(BoundLiteral literal)
+    private AnonStackEntry LowerLiteral(BoundLiteral literal)
     {
         if (literal.Type is FloatType)
             throw new NotImplementedException($"Lowering '{literal.Type.TypeName}' literals is not implemented yet");
@@ -223,7 +254,7 @@ public class Lowerer
         return _builder.LoadConst(literal.Type, value);
     }
 
-    private StackEntry LowerBinary(BoundBinary binary)
+    private AnonStackEntry LowerBinary(BoundBinary binary)
     {
         if (binary.Op == BinaryOperator.And)
             return LowerAnd(binary);
@@ -251,7 +282,7 @@ public class Lowerer
     }
 
     // a && b 
-    private StackEntry LowerAnd(BoundBinary binary)
+    private AnonStackEntry LowerAnd(BoundBinary binary)
     {
         var result = _builder.PushAnon(binary.Type);
         var end = _builder.NewLabel();
@@ -268,7 +299,7 @@ public class Lowerer
     }
 
     // a || b
-    private StackEntry LowerOr(BoundBinary binary)
+    private AnonStackEntry LowerOr(BoundBinary binary)
     {
         var result = _builder.PushAnon(binary.Type);
         var end = _builder.NewLabel();
@@ -287,12 +318,12 @@ public class Lowerer
     private StackEntry LowerAssignment(BoundAssignment assignment)
     {
         var value = LowerExpression(assignment.Value);
-        var target = _scope.Resolve(assignment.Target)!;
+        var target = LowerExpression(assignment.Target);
         _builder.Mov(target, value);
         return value;
     }
 
-    private StackEntry LowerCall(BoundCall call)
+    private AnonStackEntry LowerCall(BoundCall call)
     {
         foreach (var p in call.Args.Select(LowerExpression).Reverse())
             _builder.SetParam(p);
@@ -300,13 +331,13 @@ public class Lowerer
         return _builder.Call(call.Callee, call.Type, call.Args.Count)!;
     }
 
-    private StackEntry LowerSyscall(BoundSyscall syscall)
+    private AnonStackEntry LowerSyscall(BoundSyscall syscall)
     {
         var args = syscall.Args.Select(LowerExpression).ToList();
         return _builder.Syscall(syscall.Type, args);
     }
     
-    private StackEntry LowerPeek(BoundPeek peek)
+    private AnonStackEntry LowerPeek(BoundPeek peek)
     {
         return _builder.Peek(LowerExpression(peek.Address), LowerExpression(peek.Offset));
     }

@@ -59,6 +59,30 @@ public sealed class NotCallableException : SemanticException
     }
 }
 
+public sealed class NotAStructException : SemanticException
+{
+    public string TypeName { get; }
+
+    public NotAStructException(string typeName, int line, int column)
+        : base($"'{typeName}' is not a struct and has no members", line, column)
+    {
+        TypeName = typeName;
+    }
+}
+
+public sealed class UndefinedMemberException : SemanticException
+{
+    public string MemberName { get; }
+    public string TypeName { get; }
+
+    public UndefinedMemberException(string memberName, string typeName, int line, int column)
+        : base($"'{typeName}' has no member '{memberName}'", line, column)
+    {
+        MemberName = memberName;
+        TypeName = typeName;
+    }
+}
+
 public sealed class ArgumentCountMismatchException : SemanticException
 {
     public int Expected { get; }
@@ -123,6 +147,17 @@ public sealed class NestedFunctionException : SemanticException
         : base($"Nested function declarations are not allowed ('{functionName}')", line, column)
     {
         FunctionName = functionName;
+    }
+}
+
+public sealed class NestedStructException : SemanticException
+{
+    public string StructName { get; }
+
+    public NestedStructException(string structName, int line, int column)
+        : base($"Struct declarations are only allowed at the top level ('{structName}')", line, column)
+    {
+        StructName = structName;
     }
 }
 

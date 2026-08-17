@@ -13,7 +13,7 @@ public class SemanticAnalyzer
     {
         var body = new List<BoundStatement>();
         foreach (var statement in _astModule.Body)
-            body.Add(BindStatement(statement));
+            body.Add(BindStatement(statement, BlockContext.TopLevel));
 
         return new BoundProgram(body);
     }
@@ -25,7 +25,7 @@ public class SemanticAnalyzer
     private BlockContext _context = BlockContext.TopLevel;
     private bool _inBlock;
 
-    private BoundStatement BindStatement(Statement stmt)
+    private BoundStatement BindStatement(Statement stmt, BlockContext? ctx = null)
     {
         return stmt.Kind switch
         {
@@ -39,8 +39,68 @@ public class SemanticAnalyzer
             NodeKind.Continue when _context.InLoop => new BoundContinue(),
             NodeKind.Break => throw new BreakOutsideLoopException(stmt.Line, stmt.Column),
             NodeKind.Continue => throw new ContinueOutsideLoopException(stmt.Line, stmt.Column),
+            NodeKind.Struct when ctx is { IsTopLevel: true } => BindStruct((Struct)stmt),
+            NodeKind.Struct => throw new NestedStructException(((Struct)stmt).Identifier.Name, stmt.Line, stmt.Column),
             _ => throw new ArgumentOutOfRangeException(),
         };
+    }
+
+    private BoundStruct BindStruct(Struct @struct)
+    {
+        var name = @struct.Identifier.Name;
+
+        var fields = @struct.Fields.Select(BindStructField).ToList();
+
+        var structFields = fields.Select(f => new StructMember(f.Name, f.Type)).ToList();
+        var size = structFields.Sum(f => f.Type.Size);
+        var structType = new StructType(name, size, structFields);
+        _typeTable.Add(name, structType);
+
+        var methods = @struct.Methods.Select(m => BindStructMethod(m, structType)).ToList();
+
+        return new BoundStruct(name, fields, methods);
+    }
+
+    private BoundVarDecl BindStructField(VarDecl field)
+    {
+        var type = _typeTable.GetOrThrow(field.TypeName);
+        var init = field.Init != null ? BindExpression(field.Init) : null;
+
+        if (init != null && init.Type != type)
+            throw new TypeMismatchException(type.TypeName, init.Type.TypeName, field.Line, field.Column);
+
+        return new BoundVarDecl(type, field.Identifier.Name, init);
+    }
+
+    private BoundFuncDecl BindStructMethod(FuncDecl method, StructType owner)
+    {
+        var returnType = _typeTable.GetOrThrow(method.ReturnType);
+
+        var savedScope = _scope;
+        var savedContext = _context;
+
+        _scope = _scope.CreateChild();
+
+        List<BoundParamDecl> boundParams = [new(PtrType.Instance, "this")];
+        _scope.Declare(new Symbol("this", PtrType.Instance, method.Line, method.Column));
+
+        foreach (var param in method.Params)
+        {
+            var paramType = _typeTable.GetOrThrow(param.Type);
+            boundParams.Add(new BoundParamDecl(paramType, param.Identifier.Name));
+            _scope.Declare(new Symbol(param.Identifier.Name, paramType, param.Line, param.Column));
+        }
+
+        _context = new BlockContext { InLoop = false, ReturnType = returnType };
+        var body = BindBlock(method.Body);
+
+        if (returnType != VoidType.Instance && !BlockDefinitelyReturns(method.Body))
+            throw new MissingReturnException(method.Identifier.Line, method.Identifier.Column);
+
+        _scope = savedScope;
+        _context = savedContext;
+
+        return new BoundFuncDecl(method.Identifier.Name, returnType, boundParams, body);
     }
 
     private BoundReturn BindReturn(Return stmt)
@@ -107,21 +167,17 @@ public class SemanticAnalyzer
 
     private BoundAssignment BindAssignment(Assignment stmt)
     {
-        var targetSymbol = _scope.Resolve(stmt.Target.Name);
-        if (targetSymbol == null)
-            throw new UndefinedSymbolException(stmt.Target.Name, stmt.Line, stmt.Column);
-
-        var targetType = targetSymbol.Type;
+        var target = BindExpression(stmt.Target);
         var value = BindExpression(stmt.Value);
 
-        if (value.Type != targetType)
+        if (value.Type != target.Type)
             throw new TypeMismatchException(
-                targetType.TypeName,
+                target.Type.TypeName,
                 value.Type.TypeName,
                 stmt.Line,
                 stmt.Column);
 
-        return new BoundAssignment(targetType, stmt.Target.Name, value);
+        return new BoundAssignment(target.Type, target, value);
     }
 
     private BoundVarDecl BindVarDecl(VarDecl stmt)
@@ -225,8 +281,22 @@ public class SemanticAnalyzer
             NodeKind.Call => BindCall((Call)expression),
             NodeKind.Identifier => BindIdentifier((Identifier)expression),
             NodeKind.Cast => BindCast((Cast)expression),
+            NodeKind.MemberAccess => BindMemberAccess((MemberAccess)expression),
             _ => throw new UnsupportedExpressionException(expression.Line, expression.Column),
         };
+    }
+    
+    private BoundMemberAccess BindMemberAccess(MemberAccess access)
+    {
+        var target = BindExpression(access.Target);
+        if (target.Type is not StructType structType)
+            throw new NotAStructException(target.Type.TypeName, access.Target.Line, access.Target.Column);
+
+        var field = structType.Members.FirstOrDefault(f => f.Name == access.Member.Name);
+        if (field == null)
+            throw new UndefinedMemberException(access.Member.Name, structType.TypeName, access.Member.Line, access.Member.Column);
+
+        return new BoundMemberAccess(field.Type, target, access.Member.Name);
     }
 
     private BoundCast BindCast(Cast cast)
@@ -400,8 +470,8 @@ public class SemanticAnalyzer
             throw new TypeMismatchException(expected.TypeName, type.TypeName, binary.Line, binary.Column);
     }
 
-    private readonly record struct BlockContext(bool InLoop, TypeInfo ReturnType)
+    private readonly record struct BlockContext(bool IsTopLevel, bool InLoop, TypeInfo ReturnType)
     {
-        public static readonly BlockContext TopLevel = new(false, IntType.Int32);
+        public static readonly BlockContext TopLevel = new(true, false, IntType.Int32);
     }
 }

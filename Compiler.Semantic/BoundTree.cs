@@ -15,7 +15,7 @@ public sealed record BoundIdentifier(TypeInfo Type, string Name) : BoundExpressi
 public sealed record BoundBinary(TypeInfo Type, BoundExpression Left, BoundExpression Right, BinaryOperator Op)
     : BoundExpression(Type);
 
-public sealed record BoundAssignment(TypeInfo Type, string Target, BoundExpression Value) : BoundExpression(Type);
+public sealed record BoundAssignment(TypeInfo Type, BoundExpression Target, BoundExpression Value) : BoundExpression(Type);
 
 public sealed record BoundCall(TypeInfo Type, string Callee, List<BoundExpression> Args) : BoundExpression(Type);
 
@@ -48,3 +48,7 @@ public sealed record BoundCast(TypeInfo Type, BoundExpression Value) : BoundExpr
 public sealed record BoundBreak : BoundStatement;
 
 public sealed record BoundContinue : BoundStatement;
+
+public sealed record BoundStruct(string Name, List<BoundVarDecl> Fields, List<BoundFuncDecl> Methods) : BoundStatement;
+
+public sealed record BoundMemberAccess(TypeInfo Type, BoundExpression Target, string Member) : BoundExpression(Type);

@@ -91,8 +91,31 @@ public sealed class Parser
             TokenType.Identifier when Peek()?.Type == TokenType.Identifier => ParseVarDecl(),
             TokenType.Break when context.InLoop => ParseBreak(),
             TokenType.Continue when context.InLoop => ParseContinue(),
+            TokenType.Struct => ParseStruct(),
             _ => ParseExprStatement(),
         };
+    }
+
+    private Struct ParseStruct()
+    {
+        var @struct = Current()!;
+        AdvanceOrThrow();
+        var identifier = ParseIdentifier();
+        MatchOrThrow(TokenType.LBrace);
+        AdvanceOrThrow();
+
+        List<VarDecl> fields = [];
+        List<FuncDecl> methods = [];
+        while (!Match(TokenType.RBrace))
+        {
+            if (Peek()?.Type == TokenType.Identifier && Peek(2)?.Type == TokenType.LParen)
+                methods.Add(ParseFuncDecl());
+            else
+                fields.Add(ParseVarDecl());
+        }
+
+        Advance();
+        return new Struct(identifier, fields, methods) { Line = @struct.Line, Column = @struct.Column };
     }
 
     private Break ParseBreak()
@@ -118,9 +141,13 @@ public sealed class Parser
         var (line, column) = PositionOf(Current());
         var typeName = ParseIdentifier();
         var name = ParseIdentifier();
-        MatchOrThrow(TokenType.Assign);
-        AdvanceOrThrow();
-        var init = ParseExpression();
+
+        Expression? init = null;
+        if (Match(TokenType.Assign))
+        {
+            AdvanceOrThrow();
+            init = ParseExpression();
+        }
 
         MatchOrThrow(TokenType.Semicolon);
         Advance();
@@ -199,7 +226,7 @@ public sealed class Parser
         var expr = ParseExpression();
         if (!Match(TokenType.Assign)) return expr;
 
-        if (expr is not Identifier identifier)
+        if (expr is not (Identifier or MemberAccess))
         {
             throw ThrowAt(Current(), "Invalid assignment target");
         }
@@ -207,7 +234,7 @@ public sealed class Parser
         AdvanceOrThrow();
         var value = ParseExpression();
 
-        return new Assignment { Target = identifier, Value = value, Line = line, Column = column };
+        return new Assignment { Target = expr, Value = value, Line = line, Column = column };
     }
 
     private FuncDecl ParseFuncDecl()
@@ -324,20 +351,33 @@ public sealed class Parser
         return expr;
     }
 
-    private Expression ParsePrimary()
+    private Expression ParsePrimary() => Current()?.Type switch
     {
-        switch (Current()?.Type)
+        TokenType.String => ParseStringLiteral(),
+        TokenType.Number => ParseNumberLiteral(),
+        TokenType.True => ParseBooleanLiteral(true),
+        TokenType.False => ParseBooleanLiteral(false),
+        TokenType.Null => ParseNullLiteral(),
+        TokenType.Identifier when Peek()?.Type == TokenType.Dot => ParseMemberAccess(),
+        TokenType.Identifier => ParseIdentifierOrCall(),
+        TokenType.LParen => ParseGrouping(),
+        _ => throw ThrowAt(Current(), $"Unexpected token '{Current()?.Type}' in expression")
+    };
+
+    private Expression ParseMemberAccess()
+    {
+        var current = Current()!;
+        var target = ParseIdentifierOrCall();
+
+        while (Match(TokenType.Dot))
         {
-            case TokenType.String: return ParseStringLiteral();
-            case TokenType.Number: return ParseNumberLiteral();
-            case TokenType.True: return ParseBooleanLiteral(true);
-            case TokenType.False: return ParseBooleanLiteral(false);
-            case TokenType.Null: return ParseNullLiteral();
-            case TokenType.Identifier: return ParseIdentifierOrCall();
-            case TokenType.LParen: return ParseGrouping();
-            default:
-                throw ThrowAt(Current(), $"Unexpected token '{Current()?.Type}' in expression");
+            AdvanceOrThrow();
+            var member = ParseIdentifier();
+            Expression access = new MemberAccess(target, member) { Line = current.Line, Column = current.Column };
+            target = Match(TokenType.LParen) ? ParseCall(access) : access;
         }
+
+        return target;
     }
 
     private Expression ParseGrouping()
@@ -355,7 +395,7 @@ public sealed class Parser
         return Match(TokenType.LParen) ? ParseCall(identifier) : identifier;
     }
 
-    private Call ParseCall(Identifier callee)
+    private Call ParseCall(Expression callee)
     {
         AdvanceOrThrow();
         var args = new List<Expression>();
